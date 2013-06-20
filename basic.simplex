@@ -1,0 +1,669 @@
+@margins 2.5cm 4cm 2.5cm 4cm
+@endnotes
+
+=   Similarities and differences between Haskell & Java
+label sec:comparison
+
+right
+    *We've got ears we've both got eyes\break
+     We've got tails to swat the flies\break
+     Yes we're different as can be\break
+     But in some ways we're the same, you and me*
+    \break -- //Buster the Horse
+    (Sesame Street)//\^^http://www.youtube.com/watch?v=O-9PX95lE8c 
+     Sesame Street - Different Yet the Same^
+    \break \space
+reset
+
+
+==  A brief overview of the Haskell programming language
+label sec:haskell
+
+right
+    *Haskell will melt your brain*
+    \break -- //A user on StackOverflow//
+    \break \space
+reset
+
+    Haskell is a functional language based on a “slightly sugared
+    variant of the lambda calculus”\^Haskell 2010 Language Report
+    §1.2 The Haskell Kernel^.
+    Along these sugar parts of Haskell are *algebraic data types*
+    -- or *tagged unions*\^Hitchhikers guide to Haskell^ --
+    which allow all data types to be described
+    (in fact even machine level integers may be described by enumerating
+    all integers and fitting them into an algebraic data type).
+    The only control structures known to Haskell are *pattern matching*
+    and *recursion*. These allow for the definition of all higher level
+    structures like \#if/then/else# or \#case/of#.
+
+    Above the core language, which deals with *values*, there is a
+    rather sophisticated type system: “Values and types are not mixed
+    in Haskell. However, the type system allows user-defined datatypes
+    of various sorts, and permits not only *parametric polymorphism*
+    (using a traditional Hindley-Milner type structure) but also *ad hoc
+    polymorphism*, or *overloading* (using *type classes*)”\^Haskell
+    2010 Language Report §1.3 Values and Types^.
+
+    The type system is probably Haskells most distinctive feature and
+    it is most certainly the very reason for why “[...] Haskell is
+    doomed to succeed” (-- //Tony Hoare//). Many extensions have been
+    proposed to the type system, making it strive towards a dependently
+    typed language\^Giving Haskell a Promotion -- Introduction^.
+
+
+%   --------------------------------------------------------------------
+==  A brief overview of the Java programming language
+label sec:java
+
+right
+    *Look, it's all objects all the way down. Until you reach turtles.*
+    \break -- //Alan Kay (if he was a hindu)//
+    \break \space
+reset
+
+    The Java Language Specification describes Java as
+    “a general-purpose, concurrent, class-based, object-oriented
+    language.
+    It is designed to be simple enough that many programmers can achieve
+    fluency in the language”\^Java Language Specification,
+    Chapter 1. Introduction^.
+
+    The ingenious article “A Brief, Incomplete, and Mostly Wrong History
+    of Programming Languages” describes Java as “a relatively verbose,
+    garbage collected, class based, statically typed, single dispatch,
+    object oriented language with single implementation inheritance and
+    multiple interface inheritance.”\^^http://james-iry.blogspot.de/2009/05/brief-incomplete-and-mostly-wrong.html James Irys Blog -- May 7, 2009^
+
+    Both of these views hold a certain truth. 
+    The core Java language is an imperative programming language that
+    uses well-known control structures such as \#if#, and \#while# for
+    branching and looping.
+    Values are mostly incarnated as *objects* whose structure is
+    determined by *classes*\^Java Language Specification,
+    Chapter 8. Classes^.
+    Code is strictly organised into these
+    *classes* which in turn may be grouped into
+    *packages*\^Java Language Specification, Chapter 7. Packages^.
+    Besides classes and objects there are eight *primitive types*
+    which can not be defined by means of the language but have to be
+    taken as a given.
+
+    It is however debatable whether Java really is “simple”.
+    I for one have come to the conclusion that Java is neither simple
+    nor concise. In fact, it is a monster of complexity, requiring the
+    programmer to repeat himself over and over again. We will see that
+    there are a lot of special cases within the Java programming
+    language which has to be dealt with.
+
+
+%   --------------------------------------------------------------------
+==  Syntax and semantics
+
+    Both Haskell and Java are meant to be general purpose programming
+    languages. Both of them offer a *managed environment* by which is
+    meant that the state of the underlying machine is more or less
+    hidden and needs not be taken care of by the programmer. It is
+    especially not necessary to deal with the layout of memory or to
+    free unused memory.
+
+    Besides these technological similarities,
+    there are notable differences in their syntax and semantics.
+    This section will describe several of these differences,
+    but only in so far as they concern the translation of programming
+    interfaces between Haskell and Java.
+    Therefor features like *type inference* in Haskell contrasted to
+    *manifest typing* in Java will not be covered in this section.
+
+    The section after this section will discuss a few
+    technological aspects of the two programming platforms. By
+    “technological” we understand assumptions about the underlying
+    machine and about the actual implementation of Haskell and Java.
+
+
+%   --------------------------------------------------------------------
+=== (Restricted) Polymorphism
+label sec:polymorphism
+
+
+    While both languages support some kind of polymorphism they
+    do so in very different manners. Polymorphism in Haskell is
+    achieved via *parametric polymorphism* by which the argument
+    of a function or the field of an algebraic data type can be
+    made to accept any type instead of a specific one:
+
+columns 2
+
+figure H
+.haskell
+    id :: a -> a
+    id x = x
+caption The polymorphic id function
+label fig:polymorphicIdHaskell
+endfigure
+
+colbreak
+
+figure H
+.haskell
+    data Tree a = Node a (Tree a) (Tree a)
+                | Empty
+caption A polymorphic Tree
+label fig:polymorphicTreeHaskell
+endfigure
+
+endcolumns
+
+    Polymorphism in Java on the other hand is handled via
+    *subtype polymorphism*. Everywhere where a value of a
+    certain type is expected, a value of a subtype of that
+    type can be used. Essentially this makes any method
+    or field that takes a non-primitive value polymorphic.
+
+    The argument \#arg# in the following example may not only
+    be a value of type \#Number#, but also of any type that
+    is a subtype of \#Number# -- such as \#BigDecimal# or
+    \#AtomicLong#:
+
+figure H
+.java
+    class A {
+        public void aMethod(Number arg) {
+            ...
+        }
+    }
+caption A polymorphic method in Java
+endfigure
+
+    *Subtype polymorphism* is a form of *restricted polymorphism*
+    since it effectively limits the set of possible types to types
+    for which there is a subtyping relationship between them and
+    the given type.
+
+    The polymorphic type of a function in Haskell may be restricted
+    in a similar way.
+    Functions may declare a certain *context* which
+    consists of a set of restrictions that apply on the
+    type variables used in the declaration of the function.
+
+figure H
+.haskell
+    (!=) :: Eq a => a -> a -> Bool
+caption This fictitious operator is polymorphic, but ‘a’ is restricted.
+endfigure
+
+    Such contexts mention *type classes* that are groupings of
+    several types. A type is a member of a specific type class
+    if and only if there exists a so called *instance* of the type
+    for the given type class.
+
+figure H
+.haskell
+    data GaussianInteger a = GaussianInteger a a
+
+    instance (Eq a, Integral a) => Eq (GaussianInteger a) where
+        GaussianInteger x y == GaussianInteger x' y'
+            = (x, y) == (x', y')
+caption An instance declaration in Haskell.
+endfigure
+
+
+%   --------------------------------------------------------------------
+=== Higher-kinded polymorphism
+    
+    Versions 1.0 up to 1.4 of the Java programming language did not
+    feature any other kind of polymorphism but subtyping polymorphism.
+    This changed with the advent of Java 5 (which is the successor to
+    Java 1.4) and the introduction of *generics*. Java generics
+    extend the language with type parameters and effectively introduce
+    parametric polymorphism to the Java programming
+    language\^Generic Java: Extending the Java programming language
+    with type parameters^. Java generics were devised, among others,
+    by //Wadler// who was also part of the committee that created
+    Haskell 98 and Haskell 2010.
+
+    Generics allow for type parameters associated with classes
+    and methods. These type parameters may be used as type variables
+    in the declaration of fields and methods. Thus it is possible
+    to define polymorphic types just like in the Haskell
+    examples from figures \<fig:polymorphicIdHaskell> and
+    \<fig:polymorphicTreeHaskell> in Java:
+
+columns 2
+
+figure H
+.java
+    ...
+        public static
+        <A> A id(A a) { return a; }
+    ...
+caption Polymorphic id in Java
+endfigure
+
+colbreak
+
+figure H
+.java
+    class List<A> {
+        public void
+        add(A element) { ... }
+    }
+caption A polymorphic list in Java.
+endfigure
+
+endcolumns
+
+    Both Haskell and Java support multiple type parameters:
+
+columns 2
+
+figure H
+.java
+    class Map<K,V> { ... }
+caption A polymorphic map in Java
+endfigure
+
+colbreak
+
+figure H
+.haskell
+    data Map k v = ...
+caption The same in Haskell
+endfigure
+
+endcolumns
+
+    It is however not possible to apply a parameter to a
+    type variable in Java whereas in Haskell it is. In Haskell
+    one could for example write a function that deals with
+    “things that contain things”, whereas in Java we can not:
+
+figure H
+.haskell
+    toList :: Traversable c => c e -> [e]
+caption A higher-kinded type variable in Haskell: $c :: * \rightarrow *$
+endfigure
+
+figure H
+.haskell
+    public <C extends Traversable,E>
+    List<E> toList(C<E> c) { ... }
+caption This is not possible in Java: E is applied to a type variable.
+endfigure
+
+
+%   --------------------------------------------------------------------
+=== Order, state, and side effects
+
+right
+    *Nothing endures but change.*
+    \break -- //Heraclitus//
+    \break \space
+reset
+
+    The key difference between a Java program and a Haskell program
+    is that a Java program is a sequence of method calls whereas a
+    Haskell program is a set of functions. One consequence of this is
+    that the order of execution matters in a Java program but not in
+    Haskell. Another consequence of this is that in Haskell there is
+    no mutability, i.e. once a name is bound to a value it stays that
+    way. In Java on the other hand, a value associated with a given name
+    may change during the execution of a program due to the side effect
+    of an expression, i.e. a piece of code may re-assign a new value
+    to a variable.
+
+    While the imperative way of doing things surely is a very
+    intuitive one, it also tends to lead to a level of complexity that
+    is rather hard to manage. In order to understand the possible
+    states of a given program at a given location in its code, one
+    needs to think about all the possible states that each variable
+    in the program could have at this very location.
+
+    In order to cope with this level of complexity things are
+    encapsulated in classes and objects in Java. In fact, the whole point
+    of object orientation in Java revolves around mastering state.
+    
+    Haskell on the other hand does not have such notion of state
+    nor could a function possibly have a side effect that affected
+    the global state of the program -- simply because there is none.
+    This is a necessary consequence from the fact that a Haskell program
+    is an unordered set of functions.
+    
+    While this might seem unintuitive at first or even inefficient it
+    is not. Since restrictions on global state and sequential order
+    haven been lifted, a compiler might perform optimizations that it
+    simply was not allowed to do in an imperative setting.
+
+    It is however possible to simulate sequencing, state, and side
+    effects in Haskell. The key idea here is that a Haskell program
+    creates a list of actions which are then executed one after
+    another by the runtime system. These actions themselves are
+    typically functions which go from a state to a certain action and a
+    new state: \#State -> (Action, State)#.
+
+    Since Haskell is a strongly typed language, it is possible to exactly
+    tell what kind of actions a program will produce and what not.
+
+%
+    Monads\^Functional Programming with Overloading
+    and Higher-Order Polymorphism -- Monads / The State Monad^.
+
+
+=== Excecution model
+
+right
+    *Efficiency is intelligent laziness.*
+    \break -- //David Dunham//
+    \break \space
+reset
+
+    Java is a *strict* programming language, whereas Haskell is a
+    *non-strict* programming language. This is about
+    *reduction* happening from the inside out in a strict
+    language and from the outside in in a non-strict language.
+    We will consider a few examples to grasp these concepts.
+
+columns 2
+
+figure H
+.code
+    0*(3+(47*9))
+    (0*)(3+(47*9))
+    0
+caption Non-strict reduction
+label fig:nonStrict
+endfigure
+
+colbreak
+
+figure H
+.code
+    0*(3+(47*9))
+    0*(3+((47*)9))
+    0*(3+423)
+    0*((3+)423)
+    0*426
+    (0*)426
+    0
+caption Strict reduction
+label fig:strict
+endfigure
+
+endcolumns
+
+    In figure \<fig:nonStrict> a non-strict reduction is taking place.
+    In the first step the \#times# function is applied to its first
+    (left) argument, yielding a new function \#zero times#. Zero times
+    always returns zero and can thus discard its argument immediately,
+    yielding 0.
+
+    In figure \<fig:strict> a strict reduction can be seen.
+    In the first step the innermost function is applied to its first
+    argument, yielding a new function \#47 times#. This happens several
+    times until finally \#(0*)426# is reduced, yielding also 0.
+    It can be seen that in this case the non-strict strategy is clearly
+    taking less steps than the strict one.
+
+    It is however an unfair example, since Java is not based on *term
+    rewriting*. Also Java does not support the partial application of
+    functions, thus it would transit from line 1 to 3 directly, as from
+    line 3 to 5. But it is a good example, since it well illustrates
+    the difference between strict and non-strict reduction. As Java
+    is not based on term rewriting we will be speaking of *evaluation*
+    instead. A better translation of the example would be:
+
+figure
+.code
+    PUSH 9
+    PUSH 47
+    TIMES
+    PUSH 3
+    ADD
+    PUSH 0
+    TIMES
+.
+caption The calculation from above evaluated inside the Java Virtual Machine.
+label fig:jvmEval
+endfigure
+
+    Figure \<fig:jvmEval> also takes into account that Java is executed
+    in a virtual machine, which itself is stack based.
+
+:=  Non-Strictness and bottom (\bot ):
+    Let us consider a more interesting example:
+    
+columns 3
+
+figure H
+.code
+    0*(3+(5/0))
+    (0*)(3+(5/0))
+    0
+
+caption Success.
+label fig:nonStrictSuccess
+endfigure
+
+colbreak
+
+figure H
+.code
+    0*(3+(5/0))
+    0*(3+((5/)0))
+    error: div by zero
+
+caption fail!
+label fig:strictFail
+endfigure
+
+colbreak
+
+figure H
+.code
+    PUSH 0
+    PUSH 5
+    DIVIDE
+    error: div by zero
+
+caption fail!
+label fig:jvmFail
+endfigure
+
+endcolumns
+
+    What is actually interesting about the evaluation strategy is
+    that there is a semantic difference between the two. Since
+    strict evaluation will look at everything and force its evaluation
+    it will also hit every erroneous computation contained in the
+    expression tree, whereas it may happen that a non-strict evaluation
+    entirely skips erroneous parts and delivers a result for an
+    otherwise broken piece of code.
+
+    It is often heard that Haskell was a *lazy* programming language.
+    While most implementations of Haskell are in fact lazy by default
+    the statement is not correct per se. Haskell is only non-strict
+    which means that it has to fulfill the semantics discussed above.
+    It would be perfectly valid for a Haskell compiler to compute
+    possibly unneeded results and throw them away, just as Java would.
+    GHC for example features *speculative evaluation* and there is
+    *Eager Haskell*, an implementation of Haskell that is not lazy at
+    all. There are also parts of the Haskell language that are strict
+    by default, such as pattern matching\^Haskell 2010 Language Report
+    § 3.17 Pattern Matching^ or strict fields\^Haskell 2010 Language
+    Report § 4.2.1 Algebraic Datatype Declarations / Strictness Flags^.
+    
+:=  Infinite lists:
+    Another interesting property about non-strict evaluation are
+    infinite lists. Since non-strict evaluation will not need to
+    look at all the elements in a list it may skip a possibly
+    infinite computation. Again, a computation which would result in
+    the \bot  value using strict evaluation (in the previous example
+    it was an erroneous computation) may result in a non-bottom value
+    using non-strict evaluation:
+
+figure
+.haskell
+    head [1..] -- first element of the infinite list of 1,2,3,...
+    -> 1
+caption Here, non-strict reduction yields something useful from an infinite list
+endfigure
+
+
+%   --------------------------------------------------------------------
+==  The Awkward Squad
+
+right
+    *To write programs that are useful as well as beautiful, \break
+     the programmer must, in the end, confront the Awkward Squad.*
+    \break -- //Simon Peyton Jones//\^Tackling the Awkward Squad:
+    monadic input/output, concurrency, exceptions, and
+    foreign-language calls in Haskell^
+    \break \space
+reset
+
+
+=== Exceptions
+
+    *Exceptions* are defined error conditions that may occur during the
+    execution of a program. Some languages like C do not have special
+    support for those conditions but use special return values or state
+    to signal exceptional conditions, other languages like Java have a
+    dedicated data type and syntactic support for raising and handling
+    exceptions.
+
+    Java is rather famous for its implementation of exceptions.
+    The language has a feature called
+    *checked exceptions*\^Java Language Specification § 11.2
+    Compile-Time Checking of Exceptions^ which
+    forces the programmer to annotate methods with possible
+    exceptions (i.e. declare everything that could possibly go wrong).
+    When such a method is called these possible
+    exceptions must be taken care of, or the Java compiler will refuse
+    to do its job. It would be fair to say that exceptions are
+    ubiquitous in Java, and an integral part of the language.
+
+figure
+.java
+    class Exceptional {
+        public void method() throws IOException {
+            ...
+        }
+    }
+caption A Java method declares that it throws an IOException.
+endfigure
+
+    It would be a very nice property of the language if the absence of
+    such declarations would actually prove the absence of exceptional
+    behavior (except maybe for non-termination). Sadly this is not the
+    case. Besides checked exceptions there are so-called *unchecked
+    exceptions* or *runtime exceptions* that may occur all over the
+    place.
+
+    Besides checked and unchecked exceptions there are also errors
+    which in general denote some fatal condition and should not be
+    handled at all:
+
+figure
+image-width 5cm
+.digraph
+    Throwable -> Error
+    Throwable -> Exception
+    Exception -> RuntimeException
+.
+caption The Java exception hierarchy
+endfigure
+
+    Haskell on the other hand is widely believed to not have
+    exceptions at all and that there would be no means to deal
+    with exceptional behavior. This is not the case. There are exceptions
+    and there are even means to handle exceptions, known as
+    *IO errors*\^Haskell 2010 Language Report § 42.3
+    Throwing and catching I/O errors^.
+
+    The confusion results from the distinction between IO errors,
+    exceptions, and the general notion of *errors*:
+    “Errors during expression evaluation, denoted by \bot  (*bottom*),
+    are indistinguishable by a Haskell program from non-termination.
+    Since Haskell is a non-strict language, all Haskell types include
+    \bot . That is, a value of any type may be bound to a computation
+    that, when demanded, results in an error. When evaluated, errors
+    cause immediate program termination and cannot be caught by the
+    user.”\^Haskell 2010 Language Report § 3.1 Errors^
+
+    The name “IO error” stems from the fact
+    that dealing with exceptions is only possible within the IO Monad
+    in Haskell 98 and Haskell 2010. Monads in general provide a
+    \#fail# function which allows for customized exception handling
+    and gives rise to solutions such as the *error monad*.
+
+    Further means of dealing with exceptions are supported in the
+    presence of Concurrent Haskell\^Concurrent Haskell^\^Asynchronous
+    exceptions in Haskell^ and implemented in newer versions of
+    GHC\^A semantics for imprecise exceptions^.
+
+    Exceptions in Haskell are admittedly confusing, let alone because
+    there are so many different ways to deal with them.
+
+
+=== The Java virtual machine
+
+    The Java platform not only defines the Java programming language
+    but also the *Java virtual machine* (JVM) which has its own
+    assembler language known as *bytecode*. The behavior of this machine
+    is rigorously defined and covers not only the sequential execution
+    of a Java program but also concurrent execution and the semantics of
+    concurrent memory access. The JVM furthermore defines error
+    conditions such as memory shortage, overflows, or index operations
+    on arrays that are out of bounds. The JVM also does have explicitly
+    defined memory areas such as a *stack* and a *heap* as well as a
+    garbage collector that takes care of managing unused space in
+    the virtual machine.
+
+:=  The Java Native Interface:
+    The JVM can be accessed from the outside
+    via the *Java Native Interface* (JNI). The JNI defines a C and
+    C++ interface for interoperating with the virtual machine from
+    native code.
+
+
+=== Haskell implementations
+
+    Haskell is defined by the semantics of the underlying lambda
+    calculus, which does not cover a machine level representation
+    of Haskell code. Very many aspects of Haskell are implementation
+    specific (for example the \#error# function throws an exception
+    in GHC, which can be recovered from, whereas the language standard
+    only requires it to be a \bot  value).
+
+:=  The Foreign Function Interface:
+    Haskell 2010 is the successor to the Haskell 98 language standard
+    which incorporates the so called *foreign function interface* (FFI).
+    The FFI “enables (1) to describe in Haskell the interface to foreign
+    language functionality and (2) to use from foreign code Haskell
+    routines. [...] The Haskell FFI currently only specifies the
+    interaction between Haskell code and foreign code that follows the
+    C calling convention”.
+
+:=  Concurrent Haskell:
+    While the FFI addends certain assumptions about Haskell
+    implementations (it for example explicitly mentions a *storage
+    manager* and specifies *pointers* in Haskell), a
+    “major omission is the definition of the interaction with
+    multithreading in the foreign language and, in particular, the
+    treatment of thread-local state, and so these details are currently
+    implementation-defined”\^Haskell 2010 Language Report
+    § 8.1 Foreign Languages^.
+
+    An extension to the Haskell language called “Concurrent Haskell”
+    has been proposed by //Peyton Jones et al// as well as the
+    extension of the Haskell Foreign Function Interface with Concurrency
+    \^//Marlow//, //Peyton Jones//, //Thaller//
+    Extending the Haskell Foreign Function Interface with Concurrency^
+
+:=  The Glasgow Haskell Compilation System:
+    The above mentioned extensions to the Haskell language are
+    implemented in the Glasgow Haskell Compilation System (GHC)
+    and I expect them to be incorporated into future revisions
+    of the language standard (such as the FFI already has become
+    part of Haskell 2010).
+

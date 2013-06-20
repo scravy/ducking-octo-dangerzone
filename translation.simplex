@@ -1,0 +1,309 @@
+@margins 2.25cm 4cm 2.25cm 4cm
+@endnotes
+
+=   Translating APIs between Haskell and Java
+label sec:translation
+
+==  Translating Java idioms into Haskell
+
+    The public API of a Java library consists of a set of *packages*.
+    A package contains a set of classes where a class maybe an
+    actual *public class*, an *interface*, an *enum* or an *annotation*.
+    A Java class declares a public programming interface.    
+    In order to avoid ambiguity we will call such an interface
+    a *Java class interface*. We will refer to the set of Java classes
+    in a Java package as *Java package interface*.
+
+    Translating a Java class interface to Haskell requires finding a
+    suitable representation of the Java idioms defined above in the
+    Haskell language. The following idioms are distinguished:
+
+:   Java package:::
+    A *package* is an unordered collection of classes. A package
+    does have a name and contains one ore more classes.
+
+:   Java class:::
+    A *class* is a structured type. It defines a number of
+    methods, fields, and type variables. The methods and fields of a
+    class are also called *members*. A class may have state which is
+    defined by the current values of its static fields.
+    A class may also declare several *type variables*. The state of a
+    class is never undefined as it is initialized by a class loader
+    when loaded by the virtual machine. The initialization of a class
+    may invoke other methods and therefor throw an exception.
+
+:   Java object:::
+    An *object* is a so called *instance* of a class. We will not use that
+    term as to avoid ambiguity with regard to *type class instances* in
+    Haskell. An object occupies memory and does have its own state.
+    The state of an object is defined by the current values of its
+    non-static fields. Objects are accessed via *references*.
+
+:   Java array:::
+    *Arrays* are objects with special support by the Java language.
+    There are nine types of arrays: 8 array types whose component type
+    is a primitive type and the object array type.
+
+:   Primitive type:::
+    Every value in Java is either a reference type or a primitive type.
+    There are 8 primitive
+    types: *boolean*, *char*, *byte*, *short*, *int*, *long*, *float*,
+    and *double*.
+
+:   Method:::
+    A *method* belongs to a class and behaves like a function with
+    side effects. A method does have a name. Multiple methods with
+    the same name may exist. A method is uniquely identified by its
+    name, the class it belongs to, and the types of its parameters.
+    Invoking a method may result in an exception being
+    thrown. A method can be *static* or *virtual*. A method declares
+    zero or more parameters of a certain type and a return type.
+    A method may also declare several *type variables*.
+    \break
+    A non-static method is invoked ‘on an object’ and does have
+    access to this objects state. The actual implementation for a method
+    is chosen at runtime via *late binding* and *single dispatch*
+    based on the runtime type of the object the method was invoked on.
+
+:   Virtual Method:::
+    All non-static methods are *virtual* methods. There are no
+    non-static non-virtual methods in Java. Non-static methods are
+    in a way like static methods with an implicit extra parameter,
+    holding a reference to the object they are invoked on.
+    Since there are no non-static non-virtual methods in Java,
+    compile time binding never happens with non-static methods.
+
+:   Constructor:::
+    A constructor is a special method that is invoked when a new
+    object is created. A constructor does not have a return type.
+    Creating an object involves allocating memory
+    *and* initializing it. Initialization is a two-step process:
+    First the fields are going to be initialized to their default
+    values, second the constructor is invoked. During initialization
+    other methods may be invoked, thus invoking a constructor might
+    throw an exception.
+
+=== The Java monad
+
+    Every action in the Java programming language is executed within
+    the *Java virtual machine* (JVM). Every action may have a side
+    effect that alters the state of the virtual machine. Thus executing
+    a Java action will require the presence of a virtual machine.
+
+    A suitable representation for this is to create a custom monad,
+    the Java monad. In the Java monad a reference to a virtual machine
+    is available, it is therefor a State monad (where the state is the
+    state of the virtual machine or a reference to the virtual machine).
+    Since interacting with a virtual machine is an IO action and the
+    virtual machine itself can perform IO actions all the time it also
+    needs to be used within the Haskell IO monad.
+
+    We will therefor define the Java monad as a \@StateT@ monad
+    transformer that wraps the IO monad and has a custom state,
+    a \@JVMState@:
+
+.haskell
+    newtype Java a = Java (StateT JVMState IO a)
+        deriving (Monad, MonadState JVMState, Functor, MonadIO)
+.
+    A function \#runJava :: Java a -> IO a# can be used to run a
+    computation in the Java virtual machine inside the IO monad.
+
+=== Primitive Types
+
+    In principle every primitive can be mapped one to one to
+    a type of the Haskell 2010 base modules \#Data.Int#, \#Data.Word#,
+    \#Double#, \#Float#, or \#Bool#.
+
+>@  ll|ll
+>   byte
+>   Data.Int.Int8
+>   boolean
+>   Prelude.Bool
+>-
+>   short
+>   Data.Int.Int16
+>   char
+>   Data.Word.Word16
+>-
+>   int
+>   Data.Int.Int32
+>   float
+>   Prelude.Float
+>-
+>   long
+>   Data.Int.Int64
+>   double
+>   Prelude.Double
+
+
+=== Subtype polymorphism
+
+    The subtype polymorphism in Java effectively makes every method
+    in Java a polymorphic method. Whenever a parameter of type \#X# is
+    declared it may be given every value of a type \#X# or a
+    subtype of \#X#. What this means is: The type of the value must
+    at least support the same class interface as the type \#X#.
+
+    A suitable translation from Java to Haskell would therefor be:
+    For each class interface a type class shall be defined that
+    resembles the class interface. Wherever a Java type \#X# is
+    mentioned, replace it with a polymorphic type variable that
+    is restricted with a context that requires the type of the variable
+    to have an instance of the corresponding type class.
+
+    A suitable translation of the signature for the Java method
+    signature
+
+.java
+    String getenv(String)
+.
+    would therefor be:
+
+.haskell
+    getenv :: forall a b (String a, String b) => a -> b
+.
+    It is worth noting that *a* and *b* are distinct type variables
+    here, since it is entirely possible that they do not refer
+    to the same type but two different types which both happen to be
+    a subtype of String (in this particular example this will not be the
+    case since String is declared *final* in the Java standard library).
+
+    There is however a problem with this declaration: When the return type
+    of a function call is polymorphic then in Haskell the caller will
+    determine the actual type. But in Java the callee will determine
+    the type of the returned value, and it will do so at runtime. Thus
+    all we know is that we will get a String:
+
+.haskell
+    getenv :: forall a. String a => a -> String
+.
+    A function \#cast :: a -> Maybe b# could be used to check whether
+    a value is actually a value of type *b* and return the casted result
+    when this is the case or \#Nothing#.
+
+    But there is still a problem with this declaration: Every reference
+    in Java maybe the \#null# reference. Thus a proper translation of
+    the above method signature to Haskell would be:
+
+.haskell
+    getenv :: forall a. String a => a -> Maybe String
+.
+    Yet this declaration is not perfect. The name \@String@ is used
+    as a type class in the context and as an actual type in the return
+    type. We fix this by augmenting the type \@String@ with an apostrophe
+    (a valid name in Haskell):
+
+.haskell
+    getenv :: forall a. String a => a -> Maybe String'
+.
+
+    How could the definition for the actual type class \#String# look
+    like? For now we will define an empty class \#String#:
+
+.haskell
+    class String a
+.
+    In order to use a type as a String it suffices to declare it an
+    instance of the type class \#String#. Here are two such instances:
+
+.haskell
+    instance String [Char]
+    instance String String'
+.
+    We will defer the discussion on how the implementation of these
+    instances (and the definition of the above type class) should look
+    like to the section about the implementation of the java-bridge
+    library.
+
+    Invoking the static \@java.lang.System#getEnv(String)@ method in
+    Haskell could now look like the following:
+
+.haskell
+    main = do
+        runJava (getenv "HOME") >>= maybe
+            (putStrLn "HOME environment variable not defined")
+            (putStrLn . javaStringToHaskellString)
+.
+    As a matter of fact it might also be possible that \#null#
+    should be passed as an argument to an object parameter.
+    For this case we make \#Maybe String'# an instance of the class
+    \#String#:
+
+.haskell
+    instance String (Maybe String')
+.
+    The following invocations of getEnv will now all be legal:
+
+.haskell
+    main = runJava $ do
+        str1 <- new'String "a string object in java"
+        getEnv "HOME"
+        getEnv Nothing
+        getEnv str1
+        getEnv (Just str1)
+.
+    In order to properly model the subtyping relationships of
+    the \#String# type, we should also create instances for all
+    its super types:
+
+.haskell
+    instance Object String'
+    instance Serializable String'
+    instance CharSequence String'
+    instance Comparable String'
+.
+    The inheritance can also be presented in the declaration of
+    the \#String# type class:
+
+.haskell
+    class (Object a, Serializable a, CharSequence a, Comparable a) => String a
+.
+
+
+=== Exceptions
+
+
+=== Non-Static Methods
+
+.haskell
+    toString :: Object -> Maybe String
+.
+
+.haskell
+    toString :: Object a => a -> Maybe String
+.
+
+.haskell
+    getenv :: (Nullable a, String a) => a -> Maybe String
+.
+
+.haskell
+    instance Object a => Nullable (Maybe a) where
+.
+    FlexibleInstances.
+
+=== Anonymous classes
+
+
+
+==  Translating Haskell idioms into Java
+
+    The public API of a Haskell package consists of a set of *modules*.
+    A module declares a public interface, that is a set of public
+    functions and types.
+
+    Translating such an interface into Java requires finding a
+    suitable representation of Haskell idioms in the Java language.
+
+
+right
+    *There are two sides to every issue: \break
+    one side is right and the other is wrong, \break
+    but the middle is always evil.*
+    \break -- //Ayn Rand//
+    \break \space
+reset
+
+
+
