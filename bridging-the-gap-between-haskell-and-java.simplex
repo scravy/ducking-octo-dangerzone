@@ -114,5 +114,5 @@ appendix
 label sec:endnotes
 endnotes
 
-#include sources.simplex
+%   #include sources.simplex
 

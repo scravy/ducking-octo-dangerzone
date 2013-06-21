@@ -136,6 +136,22 @@ label sec:translation
 >   double
 >   Prelude.Double
 
+    While this would be an adequate solution it does not completely
+    capture how Java deals with primitive types. In particular Java
+    has a limited notion of subtyping for primitive types. Also Java
+    has object oriented equivalents for each of the primitive types
+    and automatically converts them back and forth as appropriate.
+
+    To capture this behavior we would like to overload primitive
+    types, much in the same way that numeric types are overloaded
+    in standard Haskell via the type classes \#Num#, \#Frac#, or
+    real frac.
+
+    Here is an example on how that might look like for the primitive
+    type of double precision floating point values, *double*:
+
+
+
 
 === Subtype polymorphism
 

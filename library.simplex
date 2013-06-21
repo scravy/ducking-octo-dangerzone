@@ -12,6 +12,21 @@ label sec:library
 
 ==  Design
 
+=== Low level interface
+
+=== Medium level interface
+
+=== Bindings generator (high level interface)
+
+
 ==  Implementation
+
+=== Concurrency
+
+=== Garbage collection
+
+=== Circular references
+
+
 
 

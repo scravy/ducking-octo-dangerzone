@@ -667,3 +667,61 @@ endfigure
     of the language standard (such as the FFI already has become
     part of Haskell 2010).
 
+
+==  Differences and smiliarities rounded up
+
+    We have seen that things are handled quite differently in Java
+    and Haskell, even antithetic in some key aspects. The most striking
+    differences are:
+
+*   strict vs. non-strict semantics -- resulting in eager or lazy evaluation
+    by default, and handling some possibly erroneous situations differently;
+
+*   mutable data vs. immutable data -- once bound the association of a name
+    and a value are not going to change. This is like fixing every variable
+    with a \#final# modifier in Java;
+
+*   unrestricted side effects vs. restricted side effects -- in principle
+    everything is allowed to happen at all times in a Java program, whereas
+    side effects in Haskell are controlled by the type system, and thus
+    certain actions can be prevented from happening (for example writing to
+    \#stdout# can not happen in a pure function);
+
+*   objects vs. functions as first class citizens -- in Haskell everything
+    can be regarded as a function, whereas in Java everything (except for
+    primitive types) is an object;
+
+*   polymorphism is handled vastly differently: While Java emphasizes
+    polymorphism by subtyping and allows for overloading of methods
+    by the types of their arguments, Haskell features type classes which
+    allow for both overloading as well as some kind of polymorphism which
+    is able to simulate subtyping (we will see this later on);
+
+    Besides these, to some extent drastic, differences, both languages
+    have in fact very much in common:
+
+*   As opposed to dynamic languages both languages *have* a type system
+    and types and values are strictly separated (again as opposed to
+    dependently typed programming languages where the type of an expression
+    may depend on a specific value);
+
+*   both languages feature a system for throwing and catching exceptions;
+
+*   both langauges allow for structured programming, where in Java code
+    is organized in classes, code is organized in modules in Haskell;
+
+*   although Java code is interpreted inside the virtual machine, both
+    languages are compiled into some sort of object code. Both languages
+    are, up to a certain extent, platform indepent (though you can not
+    distribute compiled haskell code across different platforms);
+
+*   both languages have a notion of parametric polymoprhism (though
+    Haskell has no notion of higher kinded type variables);
+
+*   both languages have a defined interface to communicate with
+    programms written in C.
+
+
+
+
+
