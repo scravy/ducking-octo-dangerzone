@@ -4,6 +4,14 @@
 =   Translating APIs between Haskell and Java
 label sec:translation
 
+right
+    *There are two sides to every issue: \break
+    one side is right and the other is wrong, \break
+    but the middle is always evil.*
+    \break -- //Ayn Rand//
+    \break \space
+reset
+
 ==  Translating Java idioms into Haskell
 
     The public API of a Java library consists of a set of *packages*.
@@ -83,6 +91,146 @@ label sec:translation
     other methods may be invoked, thus invoking a constructor might
     throw an exception.
 
+
+=== The Zoo of things in Java vs. functions
+
+    Java is a rather complex language constrasted to Haskell. While
+    in Haskell there is only data and a special data type of kind
+    \#* -> *# (functions), Java has fields, functions, constructors,
+    static initializers, behavioural declarations like \#strictfp#
+    or \#synchronized#, etc. To be fair: There are a lot of different
+    things in Haskell too, but on the surface level they are all types
+    (having a certain kind) or values (having a certain type). This
+    top level space is much more crowded in Java.
+
+    When translating these top level constructs from Java to Haskell
+    we have no choice but to turn anything into a function, which
+    especially poses a problem regarding the names of things. While
+    it is possible in Java for two members to have the same name
+    they are not allowed to have the same name in the top level
+    namespace of a Haskell module. Also field access will have to be
+    realized by using a *getter* and a *setter* function. Even worse:
+    Method names in Java are allowed to be overloaded.
+
+    While overloading is generally possible in Haskell, it is not the
+    most advisable thing to do. In many situations it will also
+    require the use of certain non-standard Haskell extensions,
+    most prominently *flexible instances*:
+
+.
+figure
+.haskell
+    class MethodPrint a where
+        print :: a
+
+    -- standard Haskell only allows types to be parameterized
+    -- by a type variable in the instance head, but (->) is
+    -- actually parameterized by `Int' and `IO ()' here.
+    instance MethodPrint (Int -> IO ()) where
+        print x = ...
+
+    instance MethodPrint (Object -> Int -> IO String) where
+        print o x = ...
+
+caption A possible overloading scheme using flexible instances.
+endfigure
+
+    As a matter of fact, the generous
+    use of overloading will defeat many other features of Haskell,
+    like type inference and composability. Too much polymorphism
+    may also lead to ambiguity in expressions and force the Haskell
+    programmer to annotate many more type declarations than necessary:
+
+figure
+.haskell
+    class A a where f :: a
+    class B a where g :: a -> String
+
+    h = g f -- What is the type of f?
+.
+caption Composability screwed up.
+endfigure
+
+    There is another issue with overloading: It is typically achieved
+    by using type classes. But as we will see type classes are our
+    weapon of choice for realizing subtype polymorphism in Haskell.
+    Mixing both the ordinary overloading of methods with fields,
+    constructors, and subtype annotations will definitely pollute
+    any sensible translation with overly verbose type annotations.
+
+    There is another issue with overloading: It is typically achieved
+    by using type classes. But as we will see type classes are our
+    weapon of choice for realizing subtype polymorphism in Haskell.
+    Mixing both the ordinary overloading of methods with fields,
+    constructors, and subtype annotations will definitely pollute any
+    sensible translation with overly verbose type annotations. Adding
+    an encoding for subtype polymorphism will most certainly lead to
+    overlapping instances and eventually render a translation impossible
+    or force an insane amount of type trickery.
+
+    We therefor keep things separated. Fortunately the allowable characters
+    for the definition of method names in Java and function names in
+    Haskell are different, so that we can use some special characters
+    to differentiate matters. Unfortunately the allowable characters
+    for the definition of method names in Java and function names in Haskell
+    are different, so that we need to translate them where incompatible.
+
+:=  The actual naming scheme: that is chosen in this paper is the
+    following:
+
+::  Fields:
+    For every public field a function with the name \#get'<field># is
+    created, where \#<field># is the name of the field. Since static
+    and non-static fields share a common namespace in Java we do not
+    have to distinguish them in this regard. For non-final fields
+    also a setter is also created: \#set'<field>#.
+
+::  Methods:
+    For every public method a function is created. Since no name in
+    Java can contain the apostrophe they are guaranteed not to clash
+    with getters and setters. Since functions in Haskell are only
+    allowed to begin with a lower case letter, a function that would
+    otherwise start with an upper case letter is prefixed with an
+    underscore (\#_#).
+
+::  Constructors:
+    Every constructor is translated into a name of the form
+    \#new'<type>#, where \#<type># is the name of the respective class.
+
+::  Overloading:
+    Since we do not intend to overload function names in Haskell,
+    every overloaded name is split up into as many names as the
+    name is overloaded. The names are distinguished by appending a
+    distinct amount of apostrophes. This may lead to funny names like
+    \#print''''''# for heavily overloaded methods.
+
+::  Keywords:
+    Whenever a translated name would be equal to a reserved word in
+    the Haskell language, it is prefixed with an underscore (not that
+    there are no upper case keywords in Haskell, so this will not produce
+    any conclicts with upper case method names, which are also augmented
+    with a leading underscore).
+    
+::  General remark:
+    Java names are allowed to contain the dollar sign. However, the
+    actual use of the dollar sign in any name is frowned upon and
+    may in fact lead to problems even within the Java ecosystem,
+    since the virtual machine uses the dollar sign to distinguish
+    auto generated methods and classes from user generated ones. It
+    is a *leaky abstraction*. Since there is no method or field name
+    within the Java standard library which actually contains a dollar
+    sign the matter is not very urgent. For completeness however we
+    will replace any occurrence of the dollar sign with two apostrophes.
+    Two apostrophes are chosen since a single apostrophe is already
+    used for distinguishing the namespace of getters, setter, methods,
+    and constructors. \break
+    The alert reader may have noticed that there is a slight possibility
+    of a name clash given by this naming scheme: A method \#print$# and
+    the third overloaded method with the name \#print# could result in
+    the same name. Because of this we will replace a trailing dollar sign
+    not with two apostrophes, but with an apostrophe and an underscore.
+
+
 === The Java monad
 
     Every action in the Java programming language is executed within
@@ -144,16 +292,35 @@ label sec:translation
 
     To capture this behavior we would like to overload primitive
     types, much in the same way that numeric types are overloaded
-    in standard Haskell via the type classes \#Num#, \#Frac#, or
-    real frac.
+    in standard Haskell via the type classes \#Num#, \#Frac#, etc.
+    Thus we create a type class for every primitive type and add
+    instances for all Haskell types that can be used like such a
+    type.
+    
+    Here is how an exemplary \#JInt# type class could look like,
+    which resembles the Java native type \#int#.
 
-    Here is an example on how that might look like for the primitive
-    type of double precision floating point values, *double*:
+.haskell
+    class JInt a where
+        toInt :: a -> Java Int32 -- java int is a 32 bit signed integer.
+.
 
+    It is worth noting that -- in contrast to e.g. \#fromInteger# of
+    the \#Num# typeclass -- the function is not a pure function, but
+    a monadic function which executes in the Java monad. This is
+    useful since it will allow us to implement *auto boxing*. Auto
+    Boxing in Java is a feature that allows a primitive type to be
+    automatically converted into an object type. An object however
+    has to be allocated on the heap in the virtual machine, which
+    is a side effect.
 
+    It will further allow us to transparently convert between Java
+    data structures and Haskell data structures such as \#Map<k,v># and
+    \#[(k,v)]# or \#java.lang.String# and \#[Char]#.
 
 
 === Subtype polymorphism
+label sec:javaSubtypes
 
     The subtype polymorphism in Java effectively makes every method
     in Java a polymorphic method. Whenever a parameter of type \#X# is
@@ -276,33 +443,198 @@ label sec:translation
     class (Object a, Serializable a, CharSequence a, Comparable a) => String a
 .
 
+=== Type variables
 
-=== Exceptions
+    Type variables 
+    
 
+=== Arrays
 
-=== Non-Static Methods
+    Arrays in Java are a special data type with special support
+    in the syntax of the Java programming language as well as in
+    the instruction set of the Java virtual machine. While in
+    principle arrays are plain collections with a type of kind
+    \#* -> *#, they have special (and unsafe) semantics regarding
+    subtyping:
+
+figure
+label fig:arrayStoreException
+.java
+    Number[] arr = new Integer[] { 1 };
+    arr[0] = 2.0;
+.
+caption This results in an ArrayStoreException.
+endfigure
+    
+    This does not happen with generic types, since -- in contrast
+    to arrays -- they are *invariant* in the type of the elements
+    and therefor two arrays with differing element types can not
+    possibly be subtypes of each other.
+
+    The reason for why arrays work differently than generics is
+    that they existed long before generics were introduced. As we
+    do not want to reproduce this possible source of defects,
+    we simply treat Arrays as an ordinary object type of kind
+    \#* -> *#, as if they were a type \#Array<E>#.
+
+    On a side note: This would be impossible to do in Java since
+    type variables can not be replaced by primitive types, i.e.
+    there can not be a type \#Array<int>#. In Haskell there is no
+    such restriction (technially every type in Haskell is boxed
+    and unboxing is an optimization performed by the compiler,
+    thus the annoying difference of boxed vs. unboxed types does
+    not leak into the type system).
+
+    Here is an exemplary signature for a Java method that takes
+    an array of \#int# (\#int[]#) and returns nothing (\#void#):
 
 .haskell
-    toString :: Object -> Maybe String
+    arrayMethod :: JInt a => Array a -> Java ()
 .
 
+:=  Setting fiels:
+    While the type of an array itself should be invariant (which
+    is ensured by the above definition), it should still possible to
+    add values of a subtype of the element type to an array. In the
+    above example of the primitive type \#int# this is ensured due to
+    the polymorphic type variable \#a# which may very well represent
+    an \#Int16# as well as an \#Int32# (as long as there are instances
+    of the type class \#JInt# for it).
+
+    In the case of objects the same translation as described in
+    section \<sec:javaSubtypes> applies:
+
+figure
 .haskell
-    toString :: Object a => a -> Maybe String
+    objectArrayMethod :: String s => Array (Array s) -> Java ()
 .
+caption A method void objectArrayMethod(java.lang.String[][]).
+endfigure
+
+
+=== Method return types and Exceptions
+
+    Checked exceptions are one on the most controversial features
+    of Java. In fact, exceptions in general are a highly discussed
+    topic. The go programming language for example ditched them
+    altogether in favor of multiple return types. In Haskell exceptions
+    exist, but only within monads. Besides that different styles of
+    exception handling are being used and advocated.
+
+    Since every interaction with the virtual machine happens within
+    the Java monad we can always resort to \#fail#, which will terminate
+    the currently running program and raise an exception in the IO monad.
+
+    An alternative way of handling exceptions is to return a value of
+    type \#Either e a#, where \#e# is the type of the exception and \#a#
+    is the type of the expected non-exceptional value. In Java there is
+    also the possibility of \#null# being returned from any method
+    that returns an object (which can be considered an exception too).
+    That would be best reflected as the type \#Maybe a# in Haskell.
+
+    An adequate translation which combines these features would
+    therefor be:
+.haskell
+    currentThread :: Either Exception (Maybe Thread)
+.
+    There is a hidden agenda in the selection of the above example.
+    While it certainly is an adequate translation it is also a very
+    unpleasant one. Although \#currentThread# will never return
+    \#null# the user is forced to consider this case. Also \#currentThread#
+    will never throw an exception, but again the user is forced to
+    consider this case:
 
 .haskell
-    getenv :: (Nullable a, String a) => a -> Maybe String
+    runJava $ do
+        (Right (Just thread)) <- currentThread
+        ...
 .
+    Luckily the return type of a function can be polymorphic
+    in Haskell *and* it is determined by the caller, not the callee.
+    We will use this flexibility and offer different implementations
+    using type classes and overloading:
 
 .haskell
-    instance Object a => Nullable (Maybe a) where
+    class ObjectResult m where
+        toObjectResult :: Either JThrowable (Maybe JObject) -> Java m
+
+    instance ObjectResult (Maybe a) where
+        -- implementation details are discussed later on
+
+    instance ObjectResult (Either JThrowable a) where
+        ...
 .
-    FlexibleInstances.
+    The signature for \#currentThread# now looks like:
+.haskell
+    currentThread :: ObjectResult object => object Thread
+.
+    The following usages are now all legal:
+.haskell
+    runJava $ do
+        (Just thread) <- currentThread
+        currentThread >>= \result -> case result of
+            (Left exc) -> {- handle exception -}
+            (Right value) -> {- handle value -}
+.
+    It is worth noting that in standard Haskell it is not possible
+    to simultaneously define \#instance ObjectResult a# (for accessing
+    the return type directly) and \#instance ObjectResult (Maybe a)#
+    since these instances overlap (\#a# subsumes \#Maybe a#). It is
+    nevertheless possible to define such instances using the
+    \#OverlappingInstances# extension.
+
+    It would also be possible to create a type class for
+    every actual return type, such as \#class StringResult#
+    or \#class ThreadResult#, which would than allow for a
+    usage like this:
+.haskell
+    runJava $ do
+        t <- currentThread :: Java Thread
+        t <- currentThread :: Java (Maybe Thread)
+        t <- currentThread :: Java (Either (Maybe Thread))
+.
+
+
+=== A note on return types and type casts
+
+    The return type of a Java method is actually an existential
+    type, which is not supported by standard Haskell. Therefor
+    return types are not translated in the same way as method
+    parameters, i.e. not polymorphic. Whether a value actually
+    does have a specific type needs to be checked at runtime.
+
+    A safe function for checking this and if necessary coercing
+    the value would have a signature like this:
+.haskell
+    coerce :: a -> Maybe b
+.
+
+    In principle such a function could only ever return \#Nothing#,
+    since otherwise it would know how to create a \#String# from
+    an \#Int#, as well as a \#FlyingCarpet# from a \#BufferedStringBuilder#.
+    It surely needs some more information to fulfil its duty.
+    We know two things: \#coerce# performs a cast on Java objects,
+    and it asks the virtual machine for whether it can perform a
+    certain cast or not. Thus we create a type class for Java Objects
+    which can, for each type, query the virtual machine for whether
+    a given object can be cast to its object type or not:
+
+.haskell
+    class JavaObject b where
+        coerce :: JavaObject a => a -> Java (Maybe b)
+.
+    Every Java type needs to have an instance of \#JavaObject# for
+    this to work.
+    
 
 === Anonymous classes
 
 
+=== Summary
 
+    
+
+newpage
 ==  Translating Haskell idioms into Java
 
     The public API of a Haskell package consists of a set of *modules*.
@@ -312,14 +644,132 @@ label sec:translation
     Translating such an interface into Java requires finding a
     suitable representation of Haskell idioms in the Java language.
 
+=== There is only data
 
-right
-    *There are two sides to every issue: \break
-    one side is right and the other is wrong, \break
-    but the middle is always evil.*
-    \break -- //Ayn Rand//
-    \break \space
-reset
+    In Haskell there is only data which may be of a certain type.
+    That type in turn has a certain kind, like \#*#, or \#* -> * -> *#.
+    The kind of a type simply specifies how many arguments a type
+    constructor takes. We translate that into Java by creating
+    a Java type for each Haskell type and adding as many type variables
+    as necessary to capture the kind of that type.
 
+    Certain data types -- functions, lists, and tuples lists --
+    have a special syntax in Haskell (\#->#, \#[]#, \#(,,)#).
+    They will be translated using default names like \#Function#,
+    \#List#, or \#Tuple3#.
+
+    Here are some example translations:
+
+>!  Haskell
+>!  Java
+>-
+>#  Map k v
+>#  Map<k,v>
+>+  
+>#  Int32
+>#  Int32
+>+
+>#  Either (Maybe a) [String]
+>#  Either<Maybe<a>,List<String>>
+>+
+>#  (a, b, c)
+>#  Tuple3<a,b,c>
+>+
+>#  a -> (Int,[b])
+>#  Function<a,Pair<Int,List<b>>>
+>+
+>#  a -> a -> a
+>#  Function<a,Function<a,a>>
+
+    None of these examples contains a higher kinded type variable.
+    As described in SETION JAVA, Java does not support higher kinded
+    type variable. Thus the following translation is false
+    (since f, a type variable, is parameterized):
+
+>#  (a -> b) -> f a -> f b
+>   -->
+>#  Function<Function<a,b>,Function<f<a>,f<b>>>
+
+    This poses a problem, since many functions in Haskell do have
+    a type containing type variables of a higher kind:
+
+>#  fmap :: Functor f => (a -> b) -> f a -> f b
+>+
+>#  runParsecT :: Monad m => ParsecT s u m a -> State s u -> m (Consumed (m (Reply s u a)))
+
+    The question is: How can such beasts be translated?
+
+#java HigherKinds.java
+
+
+
+=== Algebraic data types and constructors
+
+    Algebraic data types are the bread and butter of Haskell. They are
+    constructed using constructors. A constructor in Haskell is similar
+    to a constructor in Java, yet completely different. A constructor
+    in Java is associated with the initialization of the state of an
+    object, whereas a constructor in Haskell is simply a function that
+    creates objects (and since there is no state in Haskell, no initialization
+    is done).
+
+figure
+label fig:parseResult
+.haskell
+    data ParseResult a = Error  { line: Int, message: [Char] }
+                       | Result { info: Info, tokens: a }
+.
+caption An algebraic datatype in Haskell.
+endfigure
+
+    Algebraic datatypes are also known as *discriminated unions* or
+    *tagged unions*. This basically means that one type can store
+    different types and it knows which type it actually stores.
+
+    Figure \<fig:parseResultC> shows how such a tagged union could
+    look like in the C programming language.
+    
+figure
+label fig:parseResultC
+.code
+    enum parse_result_e { ERROR, RESULT }
+    union ParseResult {
+        enum parse_result_e type;
+        struct {
+            line_t line;
+            char* message;
+        };
+        struct {
+            into_t info;
+            result_t tokens;
+        };
+    }
+.
+caption A tagged union in C.
+endfigure
+
+    While this declares how the data is represented in memory (something
+    we do not have to worry about using Haskell), this is not everything
+    that is being declared in figure \<fig:parseResult>. In fact, there
+    are actually **seven** things being declared here:
+
++   A type constructor \#ParseResult :: * -> *#
++   A constructor function \#Error :: Int -> [Char] -> ParseResult a#
++   A constructor function \#Result :: Info -> [a] -> ParseResult a#
++   An accessor function \#line :: ParseResult a -> Int#
++   An accessor function \#message :: ParseResult a -> [Char]#
++   An accessor function \#info :: ParseResult a -> Info#
++   An accessor function \#tokens :: ParseResult a -> [a]#
+
+    The algebraic data type \#Maybe# can be translated like the following:
+
+.haskell
+    data Maybe a = Nothing | Just a
+
+#java Maybe.java
+
+.haskell
+    data Version = Version { versionBranch :: [Integer]
+                           , versionTags :: [String] }
 
 

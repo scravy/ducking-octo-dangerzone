@@ -10,23 +10,39 @@ label sec:library
 
 === The Java Native Interface
 
-==  Design
+==  Design of the library
 
 === Low level interface
 
 === Medium level interface
 
-=== Bindings generator (high level interface)
-
-
-==  Implementation
+==  Implementation details
 
 === Concurrency
 
 === Garbage collection
 
+=== OS X issues
+
+
+=   The j2hs bindings generator
+
+==  Prerequisites
+
+=== The Java Reflection API
+
+==  Design
+
 === Circular references
 
+columns 2
+image-width 6cm
+image dependencies-circo.png
+colbreak
+image dependencies-neato.png
+endcolumns
+
+=   The h2js bindings generator
 
 
 
