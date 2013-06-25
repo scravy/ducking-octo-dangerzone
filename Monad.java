@@ -1,0 +1,1 @@
+public interface Monad<A> {}
