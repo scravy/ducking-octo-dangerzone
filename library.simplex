@@ -4,6 +4,12 @@
 =   The java-bridge library
 label sec:library
 
+right
+    *Auch aus Steinen die in den Weg gelegt werden kann man Schönes bauen*
+    \break -- //Johann Wolfang v. Goethe//
+    \break \space
+reset
+
 ==  Prerequisites
 
 === The Haskell Foreign Function Interface
@@ -26,6 +32,7 @@ label sec:library
 
 
 =   The j2hs bindings generator
+label sec:j2hs
 
 ==  Prerequisites
 
@@ -41,8 +48,5 @@ image dependencies-circo.png
 colbreak
 image dependencies-neato.png
 endcolumns
-
-=   The h2js bindings generator
-
 
 
