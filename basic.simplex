@@ -1,7 +1,7 @@
 @margins 2.5cm 4cm 2.5cm 4cm
 @endnotes
 
-=   Similarities and differences between Haskell & Java
+=   Similarities and Differences between Haskell & Java
 label sec:comparison
 
 right
@@ -16,23 +16,17 @@ right
 reset
 
 
-==  A brief overview of the Haskell programming language
+==  A Brief Overview of the Haskell Programming Language
 label sec:haskell
-
-right
-    *Haskell will melt your brain*
-    \break -- //A user on StackOverflow//
-    \break \space
-reset
 
     Haskell is a functional language based on a “slightly sugared
     variant of the lambda calculus”\^Haskell 2010 Language Report
     §1.2 The Haskell Kernel^.
     Along these sugar parts of Haskell are *algebraic data types*
     -- or *tagged unions*\^Hitchhikers guide to Haskell^ --
-    which allow all data types to be described
-    (in fact even machine level integers may be described by enumerating
-    all integers and fitting them into an algebraic data type).
+    which allow all data types to be described.
+    In fact even machine level integers may be described by enumerating
+    all integers and fitting them into an algebraic data type.
     The only control structures known to Haskell are *pattern matching*
     and *recursion*. These allow for the definition of all higher level
     structures like \#if/then/else# or \#case/of#.
@@ -53,14 +47,8 @@ reset
 
 
 %   --------------------------------------------------------------------
-==  A brief overview of the Java programming language
+==  A Brief Overview of the Java Programming Language
 label sec:java
-
-right
-    *Look, it's all objects all the way down. Until you reach turtles.*
-    \break -- //Alan Kay (if he was a hindu)//
-    \break \space
-reset
 
     The Java Language Specification describes Java as
     “a general-purpose, concurrent, class-based, object-oriented
@@ -98,7 +86,7 @@ reset
 
 
 %   --------------------------------------------------------------------
-==  Syntax and semantics
+==  Syntax and Semantics
 
     Both Haskell and Java are meant to be general purpose programming
     languages. Both of them offer a *managed environment* by which is
@@ -209,7 +197,7 @@ endfigure
 
 
 %   --------------------------------------------------------------------
-=== Higher-kinded polymorphism
+=== Higher-kinded Polymorphism
     
     Versions 1.0 up to 1.4 of the Java programming language did not
     feature any other kind of polymorphism but subtyping polymorphism.
@@ -281,7 +269,7 @@ endcolumns
 figure H
 .haskell
     toList :: Traversable c => c e -> [e]
-caption A higher-kinded type variable in Haskell: $c :: * \rightarrow *$
+caption A higher kinded type variable in Haskell: $c :: * \rightarrow *$
 endfigure
 
 figure H
@@ -293,7 +281,7 @@ endfigure
 
 
 %   --------------------------------------------------------------------
-=== Order, state, and side effects
+=== Order, State, and Side Effects
 
 right
     *Nothing endures but change.*
@@ -349,7 +337,7 @@ reset
     and Higher-Order Polymorphism -- Monads / The State Monad^.
 
 
-=== Excecution model
+=== Excecution Model
 
 right
     *Efficiency is intelligent laziness.*
@@ -605,7 +593,7 @@ endfigure
     there are so many different ways to deal with them.
 
 
-=== The Java virtual machine
+=== The Java Virtual Machine
 
     The Java platform not only defines the Java programming language
     but also the *Java virtual machine* (JVM) which has its own
@@ -626,7 +614,7 @@ endfigure
     native code.
 
 
-=== Haskell implementations
+=== Haskell Implementations
 
     Haskell is defined by the semantics of the underlying lambda
     calculus, which does not cover a machine level representation
@@ -668,7 +656,7 @@ endfigure
     part of Haskell 2010).
 
 
-==  Differences and smiliarities rounded up
+==  Differences and Similarities rounded up
 
     We have seen that things are handled quite differently in Java
     and Haskell, even antithetic in some key aspects. The most striking

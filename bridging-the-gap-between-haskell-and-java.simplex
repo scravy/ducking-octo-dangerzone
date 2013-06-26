@@ -5,22 +5,21 @@
     Bridging the Gap between Haskell and Java
 
 @abstract
-    This paper investigates the possibility of translating interfaces
+    This thesis investigates the possibility of translating interfaces
     between Haskell and Java libraries, and presents a tool for
-    using Haskell libraries from within the Java Virtual Machine and
-    vice versa.
+    using Haskell libraries from within the Java Virtual Machine.
 
 @newpagesections
 
 @margins 2.25cm 4cm 2.25cm 4cm
 
-@tocdepth 4
+@tocdepth 3
 
-@endnotes
+%   @endnotes
+    \renewcommand\notesname{ }
 
 @preamble
     \usepackage[font={small,it},labelfont=bf]{caption}
-    \renewcommand\notesname{ }
 
 center
 .latex
@@ -34,27 +33,13 @@ newpage
 
 tableofcontents
 
-.latex
-    \section*{Acknowledgements}
-    \vspace{2cm}
-
-center
-large
-italic
-    Coffee. \break
-    And mate tea. \break
-    And black tea.
-
-    Basically everything that contains caffeine. \break
-    I couldn't have done it without.*
-reset
-
+newpage
 .latex
     \vspace{6em}
     \section*{Selbstständigkeitserklärung}
 .
     Hiermit bestätige ich, dass ich die vorliegende Ausarbeitung mit dem
-    Titel: “Briding the Gap between Haskell and Java” selbstständig und
+    Titel: “Bridging the Gap between Haskell and Java” selbstständig und
     ohne unerlaubte Hilfe angefertigt habe. 
 
     Ich versichere, dass ich ausschließlich die angegebenen Quellen
@@ -76,6 +61,7 @@ reset
 #include basic.simplex
 #include translation.simplex
 #include library.simplex
+#include j2hs.simplex
 #include examples.simplex
 #include evaluation.simplex
 
@@ -98,6 +84,12 @@ appendix
 ::  GHC:
     Glasgow Haskell Compiler
 
+::  Java SE:
+    Java Standard Edition
+
+::  JDBC:
+    Java Database Connectivity
+
 ::  JDK:
     Java Developtment Kit
 
@@ -110,9 +102,10 @@ appendix
 
 #include references.simplex
 
-=   Notes
-label sec:endnotes
-endnotes
+%
+    =   Notes
+    label sec:endnotes
+    endnotes
 
 %   #include sources.simplex
-
+figures

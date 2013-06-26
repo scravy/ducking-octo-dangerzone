@@ -10,43 +10,156 @@ right
     \break \space
 reset
 
+    The \#java-bridge# library is a Haskell library that allows
+    to retrieve references to classes and objects in the Java virtual machine
+    and invoke methods on objects or classes. It also supports passing
+    function pointers from the Haskell runtime to the virtual machine
+    in order to allow Java code to call back into Haskell. Most importantly
+    the library ensures that garbage collection still works correctly
+    across runtime boundaries.
+
+
 ==  Prerequisites
 
+    As a matter of fact the virtual machine is a highly concurrent
+    application, since Java has been designed from the ground up
+    with concurrency in mind. The Haskell compiler being used will
+    thus have to have basic support for concurrency, i.e. it will
+    have to emit thread-safe programs which at least do not crash
+    when the garbage collection mechanism is invoked concurrently
+    from the outside.
+
+    Unfortunately the only Haskell compiler that currently supports
+    concurrency is the Glasgow Haskell Compilation System (GHC).
+    The implementation of the java-bridge is hence restricted to GHC.
+    Most Haskell applications are GHC-centric these days anyways
+    which is also due to the huge amount of language extensions that
+    GHC supports. Many libraries and modern Haskell idioms (such as
+    monad transformers) depend on extensions such as *multi parameter
+    type classes* or *functional dependencies* and it is expected that
+    these extensions are being incorporated into the language standard
+    soon. In fact, Haskell was designed as a testbed for experimentation
+    with those language extensions and it is commonly seen among Haskell
+    compilers that proprietary extensions are being implemented.
+    The ongoing effort to integrate these extensions into the language
+    standard is known as *Haskell Prime (Haskell')* and has already
+    resulted in a minor revision of the Haskell language, the
+    Haskell 2010 language standard. Haskell 2010 incorporates the
+    *foreign function interface* extension, which is another necessary
+    prerequisite for the java-bridge library. A major revision of Haskell
+    is expected next year, Haskell 2014.
+
+%   In principle however should every Haskell compilation system
+    that supports the Concurrent Haskell extension be able to
+    compile the core of this library.
+
+    
 === The Haskell Foreign Function Interface
+    
+    The Haskell FFI describes some syntactic additions to
+    the Haskell language that allow the programmer to import
+    definitions from other languages and mark Haskell functions
+    as exported, i.e. callable from the outside world.
+    The FFI in its current form only describes the interfacing
+    with programs written in the C programming language.
+    
 
 === The Java Native Interface
-
-==  Design of the library
-
-=== Low level interface
-
-=== Medium level interface
-
-==  Implementation details
-
-=== Concurrency
-
-=== Garbage collection
-
-=== OS X issues
+    
+    The JNI comprises an API for accessing the JVM and for
+    accessing native methods from within the JVM.
+    
 
 
-=   The j2hs bindings generator
-label sec:j2hs
+==  Design of the Library
 
-==  Prerequisites
+    Since both Haskell and Java only support interfacing with
+    programs written in the C programming language, the most
+    basic parts of the java-bridge library are to be written in
+    C.
 
-=== The Java Reflection API
+image-width \textwidth
+image-trim 0 1cm 0 0
+figure
+.dot
+    digraph {
+        node [shape=box]
+        edge [dir=both]
 
-==  Design
+        rankdir="LR"
 
-=== Circular references
+        JVM -> JNI -> C -> FFI -> Haskell
+    }
+caption Basic data flow between Haskell and Java
+endfigure
 
-columns 2
-image-width 6cm
-image dependencies-circo.png
-colbreak
-image dependencies-neato.png
-endcolumns
+.   This will of course require some glue code
+    in both Haskell and Java to be written:
+
+    A low level binding to the JNI will be given in Haskell
+    which is referred to as the *low level interface*. On top
+    of the low level interface a *medium level interface* is to
+    be built which effectively comprises a simple DSL
+    (*domain specific language*) for method lookup and invocation.
+    The medium level interface will also hide the details of
+    reference management and garbage collection from the
+    enduser of the library.
+
+    On the Java side of things there will be some classes
+    for abstracting basic Haskell datatypes (the function, basically).
+
+image-trim 0 3cm 0 0
+figure
+.dot
+    digraph {
+        
+        rankdir="LR"
+
+        node [style=invisible]
+        edge [style=invisible, arrowhead=none]
+        A -> B -> C -> D
+
+        node [shape=box, style=solid]
+        edge [style=solid, arrowhead=normal]
+
+        node [color=green]
+        Hask [label="Haskell", pos = "0.0!"]
+        Low [label="low level interface"]
+        Medium [label="medium level interface"]
+
+        node [color=orange]
+        Bridge [label="FFI ⇄ C ⇄ JNI"]
+
+        node [color=blue]
+        HFunc [label="HFunction.java"]
+        JVM [label="JVM"]
+
+        { rank = same; A; Hask }
+        { rank = same; B; Low; Medium }
+        { rank = same; C; Bridge; HFunc }
+        { rank = same; D; JVM }
+
+        Hask -> Medium -> Low -> Bridge -> JVM
+        Hask -> Low
+        JVM -> HFunc -> Bridge -> Hask [color=red]
+    }
+caption The interaction of components in the java-bridge library. Green components are written in Haskell, yellow ones in C, blue ones in Java. Black arrows are calls from Haskell into the JVM, read arrows are calls from the JVM back into Haskell.
+endfigure
+image-defaults
+
+==  Low Level Interface
+
+    The core of the java-bridge library is a direct translation of
+    the JNI into Haskell. These bindings are located in the modules
+    \#Foreign.Java.JNI.Safe# and \#Foreign.Java.JNI.Unsafe#. This
+    subsection comprises a short walk through the interface:
+
+:=  How to read the signatures:
+
+#include library-low.simplex
+
+==  Medium Level Interface
+
+#include library-medium.simplex
 
 

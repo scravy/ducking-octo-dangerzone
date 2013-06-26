@@ -1,15 +1,13 @@
 @margins 2.25cm 4cm 2.25cm 4cm
 @endnotes
 
-=   Introduction
+=   Introduction and Motivation
 label sec:introduction
 
-==  Motivation
-
 right
-    *The crazy think is we still are extremely bad at fitting things
+    *The crazy think[sic!] is we still are extremely bad at fitting things
      together \break
-     -- still the best way of fitting things together is the unix pipe*
+     -- still the best way of fitting things together is the Unix pipe*
     \break -- //Joe Armstrong//\^^http://erlang.org/pipermail/erlang-questions/2013-January/071944.html January 2013, Joe Armstrong in an email^
     \break \space
 reset
@@ -18,7 +16,7 @@ reset
     Haskell is typically compiled to native binaries, whereas
     Java is run in a virtual machine. Haskell is a non-strict language
     with immutable data, whereas Java is a strict language with
-    mutable data. The people having an interest in Haskell are mostly
+    mutable data. People having an interest in Haskell are mostly
     from an academic background, the Java community is largely rooted
     in the industry.
 
@@ -39,7 +37,7 @@ reset
     be prevented from happening.
 
     It would be quite beneficial for both camps to have a means of
-    interfacing with each other: There are libraries for almost
+    interfacing with each others language: there are libraries for almost
     everything written in Java, which one might want to use in Haskell.
     On the other hand, certain applications are definitely far easier
     and robust to be written in Haskell (parsers are a canonical
@@ -47,16 +45,23 @@ reset
     project to Haskell.
 
 
-==  Scope of this document
+==  Scope of this Thesis
 
-    In this paper a tool is presented which allows for binding Haskell
-    applications to Java applications and vice versa.
-    Because of the vast differences between Haskell and Java
-    -- especially relating to their type systems --
-    a closer investigation of these differences is conducted.
+    In this thesis two tools are presented: The *java-bridge* library
+    and the *j2hs* bindings-generator. The java-bridge is a library
+    that allows a Haskell program to invoke methods in the Java
+    Virtual Machine and to call back into the Haskell runtime.
+
+    Because of the vast differences between Haskell
+    and Java -- especially relating to their type systems --
+    a closer investigation of these differences is conducted and
+    a translation scheme is proposed which captures the essence
+    of a Java API and expresses it in Haskell. The *j2hs* tool
+    performs this translation automatically and uses the java-bridge
+    library to connect the two runtimes.
 
 
-==  Organization of this document
+==  Organization of this Document
 
     In section \<sec:comparison> the Haskell and Java programming
     languages are described and compared. The parts that are especially
@@ -66,21 +71,30 @@ reset
 
     How the interface of a Java library could be translated into Haskell
     such that it looked like a Haskell library and vice versa is
-    discussed in the next section, section \<sec:translation>. These
-    observations are then used and refined to build the *java-bridge*
-    in section \<sec:library>,
-    a library that supports invoking Java code from within a Haskell
-    application. It also supports the creation of *bindings*, i.e.
-    auto-generated code that can be used by a Haskell application to
-    interface with a Java application, without actually talking Java.
-    The java-bridge is used in section \<sec:examples> to demonstrate
+    discussed in the next section, section \<sec:translation>.
+    We will see that a Java interface can be translated straightforward
+    to Haskell. On the other hand translating a Haskell interface
+    to Java bears several problems.
+
+    Section \<sec:library> than explains the design and implementation
+    of the *java-bridge* library, which focuses in technical details
+    like concurrency and garbage collection between, and how the
+    Java Virtual Machine and the Haskell runtime affect each other.
+
+    The observations from section \<sec:translation> and the results
+    from \<sec:library> are than combined to build the *j2hs* tool.
+    The j2hs tool is used to perform a complete translation of the
+    standard library of the Java Standard Edition (Java SE).
+
+    These tools are used in section \<sec:examples> to demonstrate
     how a Haskell programmer could use the Java standard library without
     leaving the Haskell programming language: (1) A GUI application
     utilizing the Java Swing UI Toolkit and (2) a database application
     using the *Java database connectivity* (JDBC).
 
-    We conclude with a final evaluation of the usability and efficiency
-    of the tool created.
+    We conclude with an evaluation of the tools built and compare them
+    to other projects that aim to achieve some kind of interoperability
+    between Haskell and Java.
 
     Footnotes are realized as endnotes and uniquely numbered throughout
     this document.

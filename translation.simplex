@@ -28,11 +28,11 @@ reset
     the Java programming language and its constructs.
 
 
-=== The Zoo of things in Java vs. functions
+=== The Zoo of Things in Java vs. Functions in Haskell
 label sec:names
 
-    Java is a rather complex language constrasted to Haskell. While
-    in Haskell there is only data and a special data type of kind
+    Java is a rather complex language contrasted to Haskell. While
+    in Haskell there is only data and a special datatype of kind
     \#* -> *# (functions), Java has fields, functions, constructors,
     static initializers, behavioural declarations like \#strictfp#
     or \#synchronized#, etc. To be fair: There are a lot of different
@@ -105,7 +105,7 @@ endfigure
     overlapping instances and eventually render a translation impossible
     or force an insane amount of type trickery.
 
-    We therefor keep things separated. Fortunately the allowable characters
+    We therefore keep things separated. Fortunately the allowable characters
     for the definition of method names in Java and function names in
     Haskell are different, so that we can use some special characters
     to differentiate matters. Unfortunately the allowable characters
@@ -145,7 +145,7 @@ endfigure
     Whenever a translated name would be equal to a reserved word in
     the Haskell language, it is prefixed with an underscore (not that
     there are no upper case keywords in Haskell, so this will not produce
-    any conclicts with upper case method names, which are also augmented
+    any conflicts with upper case method names, which are also augmented
     with a leading underscore).
     
 ::  General remark:
@@ -168,7 +168,7 @@ endfigure
     not with two apostrophes, but with an apostrophe and an underscore.
 
 
-=== The Java monad
+=== The Java Monad
 label sec:javaMonad
 
     Every action in the Java programming language is executed within
@@ -178,13 +178,13 @@ label sec:javaMonad
 
     A suitable representation for this is to create a custom monad,
     the Java monad. In the Java monad a reference to a virtual machine
-    is available, it is therefor a State monad (where the state is the
+    is available, it is therefore a State monad (where the state is the
     state of the virtual machine or a reference to the virtual machine).
     Since interacting with a virtual machine is an IO action and the
     virtual machine itself can perform IO actions all the time it also
     needs to be used within the Haskell IO monad.
 
-    We will therefor define the Java monad as a \@StateT@ monad
+    We will therefore define the Java monad as a \@StateT@ monad
     transformer that wraps the IO monad and has a custom state,
     a \@JVMState@:
 
@@ -245,7 +245,7 @@ label sec:primitiveTypes
 .
 
     It is worth noting that -- in contrast to e.g. \#fromInteger# of
-    the \#Num# typeclass -- the function is not a pure function, but
+    the \#Num# type class -- the function is not a pure function, but
     a monadic function which executes in the Java monad. This is
     useful since it will allow us to implement *auto boxing*. Auto
     Boxing in Java is a feature that allows a primitive type to be
@@ -264,8 +264,8 @@ label sec:javaObjects
     hold a reference to the actual object (since that is living
     in the Heap of the virtual machine). In the next sections
     is, among other things, a mechanism introduced for simulating
-    subtype polymorphism using typeclasses which involves the
-    creation of a type class for every java type. Thus every java
+    subtype polymorphism using type classes which involves the
+    creation of a type class for every Java type. Thus every Java
     type introduced several types in Haskell which we will
     distinguish by appending an apostrophe to one of them:
 
@@ -273,7 +273,7 @@ label sec:javaObjects
     newtype String' = String' ObjectReference
     class String a where ...
 
-=== Subtype polymorphism
+=== Subtype Polymorphism
 label sec:javaSubtypes
 
     The subtype polymorphism in Java effectively makes every method
@@ -282,7 +282,7 @@ label sec:javaSubtypes
     subtype of \#X#. What this means is: The type of the value must
     at least support the same class interface as the type \#X#.
 
-    A suitable translation from Java to Haskell would therefor be:
+    A suitable translation from Java to Haskell would therefore be:
     For each class interface a type class shall be defined that
     resembles the class interface. Wherever a Java type \#X# is
     mentioned, replace it with a polymorphic type variable that
@@ -295,7 +295,7 @@ label sec:javaSubtypes
 .java
     String getenv(String)
 .
-    would therefor be:
+    would therefore be:
 
 .haskell
     getenv :: forall a b (String a, String b) => a -> b
@@ -397,7 +397,7 @@ label sec:javaSubtypes
     class (Object a, Serializable a, CharSequence a, Comparable a) => String a
 .
 
-=== Static and non-static methods
+=== Static and Non-static Methods
 label sec:staticAndNonStaticMethods
 
     Static methods can be easily translated by creating a
@@ -409,10 +409,10 @@ label sec:staticAndNonStaticMethods
     seen in figure \<fig:thisParameter>.
 
 figure
-label fig:thisParameter
 .haskell
     toString :: Object -> String
 caption The Object.toString() method as a Haskell function.
+label fig:thisParameter
 endfigure
 
     Since a method can also be invoked on all subtypes of the
@@ -422,14 +422,14 @@ endfigure
     An example of this can be seen in \<fig:polymorphicThis>.
 
 figure
-label fig:polymorphicThis
 .haskell
     toString :: Object this => this -> String
 caption A Java method as polymorphic Haskell function.
+label fig:polymorphicThis
 endfigure
 
 
-=== Higher kinded types and type variables
+=== Higher Kinded Types and Type Variables
 label sec:javaHigherKinds
 
     Java does have higher kinded types through *generics*.
@@ -440,11 +440,11 @@ label sec:javaHigherKinds
     for the Java method \#V Map<K,V>.put(K key, V value)#.
 
 figure
-label fig:functionTypeVar
 .haskell
     put :: (Map (this key value), Object key, Object value)
         => this key value -> key -> value -> Java value
 caption Translation of a non-static method  involving type variables.
+label fig:functionTypeVar
 endfigure
 
     There is a slight cave-at with this approach though.
@@ -462,11 +462,11 @@ endfigure
     of this can be seen in \<fig:typeVarWithSubtypingRelation>.
 
 figure
-label fig:typeVarWithSubtypingRelation
 .haskell
     aMethod :: (AType (this a), InstanceOfAType a1 a, InstanceOfAType a2 a)
            => this a -> a1 -> a2 -> void
 caption The InstanceOfAType relation realizes subtyping.
+label fig:typeVarWithSubtypingRelation
 endfigure
 
     We will however refrain from the use of multi parameter
@@ -489,12 +489,12 @@ endfigure
     might than look like in figure \<fig:callFunctionWithCoerce>.
 
 figure
-label fig:callFunctionWithCoerce
 .haskell
     run :: (AType (x a), Object b, Object c) => x a -> b -> c -> Java ()
     run x a1 a2 
             aMethod x (coerce a1) (coerce a2)
 caption
+label fig:callFunctionWithCoerce
 endfigure
 
     It is worth noting that coerce returns \#Maybe b#. This is perfectly
@@ -533,7 +533,7 @@ endfigure
 === Arrays
 label sec:arrays
 
-    Arrays in Java are a special data type with special support
+    Arrays in Java are a special datatype with special support
     in the syntax of the Java programming language as well as in
     the instruction set of the Java virtual machine. While in
     principle arrays are plain collections with a type of kind
@@ -541,17 +541,17 @@ label sec:arrays
     subtyping:
 
 figure
-label fig:arrayStoreException
 .java
     Number[] arr = new Integer[] { 1 };
     arr[0] = 2.0;
 .
 caption This results in an ArrayStoreException.
+label fig:arrayStoreException
 endfigure
     
     This does not happen with generic types, since -- in contrast
     to arrays -- they are *invariant* in the type of the elements
-    and therefor two arrays with differing element types can not
+    and therefore two arrays with differing element types can not
     possibly be subtypes of each other.
 
     The reason for why arrays work differently than generics is
@@ -563,7 +563,7 @@ endfigure
     On a side note: This would be impossible to do in Java since
     type variables can not be replaced by primitive types, i.e.
     there can not be a type \#Array<int>#. In Haskell there is no
-    such restriction (technially every type in Haskell is boxed
+    such restriction (technically every type in Haskell is boxed
     and unboxing is an optimization performed by the compiler,
     thus the annoying difference of boxed vs. unboxed types does
     not leak into the type system).
@@ -575,7 +575,7 @@ endfigure
     arrayMethod :: JInt a => Array a -> Java ()
 .
 
-:=  Setting fiels:
+:=  Setting fields:
     While the type of an array itself should be invariant (which
     is ensured by the above definition), it should still possible to
     add values of a subtype of the element type to an array. This
@@ -611,7 +611,7 @@ caption A method void objectArrayMethod(java.lang.String[][]).
 endfigure
 
 
-=== Method return types and Exceptions
+=== Method Return Types and Exceptions
 label sec:returnTypesAndExceptions
 
     Checked exceptions are one on the most controversial features
@@ -633,7 +633,7 @@ label sec:returnTypesAndExceptions
     That would be best reflected as the type \#Maybe a# in Haskell.
 
     An adequate translation which combines these features would
-    therefor be:
+    therefore be:
 .haskell
     currentThread :: Either Exception (Maybe Thread)
 .
@@ -695,11 +695,11 @@ label sec:returnTypesAndExceptions
 .
 
 
-=== A note on return types and type casts
+=== A Note on Return Types and Type Casts
 label sec:coerce
 
     The return type of a Java method is actually an existential
-    type, which is not supported by standard Haskell. Therefor
+    type, which is not supported by standard Haskell. Therefore
     return types are not translated in the same way as method
     parameters, i.e. not polymorphic. Whether a value actually
     does have a specific type needs to be checked at runtime.
@@ -728,7 +728,7 @@ label sec:coerce
     this to work.
     
 
-=== Anonymous classes
+=== Anonymous Classes
 label sec:callbacks
 
     To enable a Haskell programmer to completely make use of a
@@ -746,7 +746,7 @@ label sec:callbacks
 
     We will not discuss the technical details in this place
     (we will do so in a later section dealing with the actual
-    implementation of a java-bridge), but outline the approach.
+    implementation of the java-bridge library), but outline the approach.
 
     The simplest case are interfaces which specify exactly one
     method. A Haskell function itself can be regarded as an
@@ -765,7 +765,7 @@ figure
     myThread = do
         Thread.sleep (500 :: Int)
         return ()
-caption A perfectly valid haskell representation of an object that implements java.lang.Runnable.
+caption A perfectly valid Haskell representation of an object that implements java.lang.Runnable.
 endfigure
 
 figure
@@ -897,8 +897,8 @@ endfigure
     This does however not include the non-static interfaces.
     Furthermore we will see later on that we run into trouble
     implementing such type classes due to mutually recursive definitions.
-    The sole purpose of type classes and instances is therefor
-    to model the intheritance hierarchy.
+    The sole purpose of type classes and instances is therefore
+    to model the inheritance hierarchy.
 
 *   **Subtyping** is simulated using Haskells type classes. For each
     Java type, a Haskell type class is to be created. A concrete object
@@ -977,7 +977,7 @@ newpage
     Translating such an interface into Java requires finding a
     suitable representation of Haskell idioms in the Java language.
 
-=== There is only data
+=== There is only Data
 
     In Haskell there is only data which may be of a certain type.
     That type in turn has a certain kind, like \#*#, or \#* -> * -> *#.
@@ -986,7 +986,7 @@ newpage
     a Java type for each Haskell type and adding as many type variables
     as necessary to capture the kind of that type.
 
-    Certain data types -- functions, lists, and tuples lists --
+    Certain datatypes -- functions, lists, and tuples lists --
     have a special syntax in Haskell (\#->#, \#[]#, \#(,,)#).
     They will be translated using default names like \#Function#,
     \#List#, or \#Tuple3#.
@@ -1031,9 +1031,9 @@ newpage
     variables. ).
     
 
-=== Algebraic data types and constructors
+=== Algebraic Datatypes and Constructors
 
-    Algebraic data types are the bread and butter of Haskell. They are
+    Algebraic datatypes are the bread and butter of Haskell. They are
     constructed using constructors. A constructor in Haskell is similar
     to a constructor in Java, yet completely different. A constructor
     in Java is associated with the initialization of the state of an
@@ -1042,12 +1042,13 @@ newpage
     is done).
 
 figure
-label fig:parseResult
+
 .haskell
     data ParseResult a = Error  { line: Int, message: [Char] }
                        | Result { info: Info, tokens: a }
 .
 caption An algebraic datatype in Haskell.
+label fig:parseResult
 endfigure
 
     Algebraic datatypes are also known as *discriminated unions* or
@@ -1058,7 +1059,6 @@ endfigure
     look like in the C programming language.
     
 figure
-label fig:parseResultC
 .code
     enum parse_result_e { ERROR, RESULT }
     union ParseResult {
@@ -1074,6 +1074,7 @@ label fig:parseResultC
     }
 .
 caption A tagged union in C.
+label fig:parseResultC
 endfigure
 
     While this declares how the data is represented in memory (something
@@ -1111,23 +1112,23 @@ endfigure
     the corresponding Haskell constructor.
 +   The getter functions throw an error if invoked on a
     member class which actually does not have the
-    corresponding field (this is the same behviour as
+    corresponding field (this is the same behavior as
     in Haskell).
     
 
-    The algebraic data type \#Maybe# can now be translated as can
+    The algebraic datatype \#Maybe# can now be translated as can
     be seen in figure \<sec:maybeJava>.
 
 figure
-label sec:maybeJava
 .haskell
     data Maybe a = Nothing | Just a
 
 #java Maybe.java
 caption Translation of the algebraic datatype Maybe to Java.
+label fig:maybeJava
 endfigure
     
-=== Type classes
+=== Type Classes
 label sec:typeClassesAsInterfaces
 
     Type classes can be understood as interfaces. A Haskell type
@@ -1141,7 +1142,7 @@ label sec:typeClassesAsInterfaces
 
     The monadic return function \#a -> m a# for example can not
     return any type at all without knowing how to create \#m# values.
-    It is therefor part of the type class \#Monad# which provides
+    It is hence part of the type class \#Monad# which provides
     this information (if there is an instance for the desired type).
 
     If type classes are translated using Java interfaces our
@@ -1166,12 +1167,7 @@ label sec:typeClassesAsInterfaces
     The type parameters need to be made covariant, i.e. allow for a
     subtype in order to properly implement \#fmap#.
 
-    Figure \<fig:functorJava> shows a proper example of the \#Functor# interface, including an
-    (incomplete) implementation of a fictitious \#List# class (it concentrates
-    on the types only here):
-
 figure
-label fig:functorJava
 .java
     public interface Functor<A> {
         public <B> Function<? extends Functor<A>,? extends Functor<B>>
@@ -1187,7 +1183,12 @@ label fig:functorJava
         /* remaining methods */
     }
 caption The Haskell type class "Functor" as an interface in Java.
+label fig:functorJava
 endfigure
+
+    Figure \<fig:functorJava> shows a proper example of the \#Functor# interface, including an
+    (incomplete) implementation of a fictitious \#List# class (it concentrates
+    on the types only here):
 
     This way we not only have resolved the issue with higher kinded type
     variables, but also we eliminated the context \#Functor f =># by moving
@@ -1206,7 +1207,7 @@ endfigure
     with a Java type of the same kind (\#Functor<A>#). But \#m# in the
     signature of \#runParsecT# really *has* the higher kind \#* -> *#.
 
-    Futhermore: If we replaced \#m# in the signature of \#runParsecT#
+    Furthermore: If we replaced \#m# in the signature of \#runParsecT#
     where it is actually applied to a type argument, we would lose the
     ability to express that the first \#m# in the return type is exactly
     the same type as the second m (again of kind \#* -> *#).
@@ -1220,7 +1221,7 @@ endfigure
     monad \#m#).
 
 
-=== Polymorphic return types
+=== Polymorphic Return Types
 
     Except for type constructors and higher kinded type variables,
     the translation of a Haskell interface into Java seems to be
