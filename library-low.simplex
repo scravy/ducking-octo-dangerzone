@@ -1,0 +1,493 @@
+=== IDs and References
+
+    Every function in the low level interface requires a pointer
+    to an instance of the JVM. The Haskell FFI represents pointers
+    as the type \#Ptr a#, where a is the type of the data the pointer
+    is pointing at (i.e. pointers are to some extent type safe in Haskell).
+
+    Haskell 2010 allows for *phantom types*, i.e. types that are not
+    actually inhabited by any non-bottom value. A phantom type is
+    introduced by an empty data declaration. Such types can be used
+    to parameterize pointers adequately. Throughout the low level
+    interface the following phantom types are used:
+
+:   JVM: \space \break
+    An instance of the Java Virtual Machine.
+
+:   JConstructorID: \space \break
+    The id of a Java constructor.
+
+:   JFieldID, JStaticFieldID: \space \break
+    The id of a Java field.
+
+:   JMethodID, JStaticMethodID: \space \break
+    The id of a Java method.
+
+:   JObjectRef, JClassRef, JThrowableRef: \space \break
+    A reference to an object, a class, or an exception.
+
+    The JNI distinguishes several reference types:
+    (1) *local references*, (2) *global references*, (3) *IDs*.
+
+    **IDs** are stable pointers that will not ever be garbage collected
+    and need not be released manually.
+
+    References reference an object in the heap space of the JVM
+    (well, actually classes are allocated in the permanent generation space
+    of the Java virtual machine, a part of memory that is much more
+    seldom visited by the garbage collector, but we can view this as
+    a special part of the heap). References are not ordinary pointers,
+    but pointers to pointers in the JVM. This is necessary so that the
+    JVM can do some book keeping and knows which objects it may not
+    yet garbage collect since they are probably still references by
+    some foreign code (otherwise the garbage collector might collect
+    objects which are not referenced by any other object in the Java
+    heap anymore and we would end up with a dangling pointer).
+
+    **Local references** are references that are automatically destroyed
+    after the function they were created in returns. Implementations 
+    of the JNI achieve this by allocating a local reference table that
+    is destroyed as soon as the calling function returns. These
+    references are not intended to have a long lifetime and in fact
+    are invalid as soon as they are returned by a function (much like
+    returning a pointer to locally allocated data). Obviously local
+    references are unsuitable for use within Haskell, since once they
+    end up in the Haskell runtime they have surely left the realm of
+    the C function they were created in.
+
+    **Global references** on the other hand are stable references and will
+    live as long as they are not manually released. These are the
+    references that we are going to deal with, and therefore we will
+    have to free these resources by hand. All functions in the low level
+    interface return global references. Since most functions in the JNI
+    return local references the C glue code converts them into global
+    references.
+
+figure
+.code
+    function jobject localToGlobal(vmi_t* vmi, jobject local) {
+        jobject global = NULL;
+        if (local == NULL) {
+            global = NULL;
+        } else {
+            global = (*vmi->env)->NewGlobalRef(vmi->env, local);
+            (*vmi->env)->DeleteLocalRef(vmi->env, local);
+        }
+        return global;
+    }
+caption C code that converts a local reference to a global reference. This is actually not a function in the java bridge library but a macro vmi. {\ttfamily vmi\_t} is the virtual machine interface that is maintained by the library.
+endfigure
+
+
+=== Controlling the Java Virtual Machine
+
+    Before we can do anything with a virtual machine, we need to create
+    one. Afterwards we need to tear it down again. This is what the
+    functions \#createVM#, \#createVM'#, and \#destroyVM# are for.
+
+small
+
+::  createVM: \#IO (Ptr JVM)# \break
+    Creates a new virtual machine instance.
+    Note that in theory it should be possible to create
+    multiple virtual machines within a process, in practice
+    no known implementation of a virtual machine does support
+    this; thus this function should be called at most once.
+
+::  createVM': \#Word32 -> Ptr CString -> IO (Ptr JVM)# \break
+    Like \#createVM# but additionally takes an array (\#Ptr CString# = \#char**#)
+    of arguments. The length of this array has to be specified by
+    the first parameter (just like in C since this is a very low
+    level binding).
+
+::  destroyVM: \#Ptr JVM -> IO ()# \break
+    Destroys a virtual machine instance.
+
+::  persistVM: \#Ptr JVM -> IO ()# \break
+    This function is not present in the JNI. It is a special function
+    that is needed by the medium level interface to tell the
+    C parts of the java-bridge that the virtual machine should not
+    be teared down after the last environment pointer is released.
+    The JNI differentiates between pointers to the virtual machine
+    and execution environments. Each environment pointer is attached
+    to a specific thread and vice versa. In order to allow the
+    concurrent access from multiple Haskell threads to the virtual machine
+    multiple environment pointers have to be maintained by the c library
+    which will automatically destroy the VM if the last environment
+    pointer is released.
+
+reset
+
+=== Class, Method and Field Lookup
+
+small
+
+::  findClassRef: \#Ptr JVM -> CString -> IO (Ptr JClassRef)# \break
+    Discovers a class. The method requires a *binary name*\^Java Language Specification
+    §13.1 The Form of a Binary^ as the name of the class to find,
+    but with slashes instead of dots i.e. \#java/lang/Thread$State#.
+    If the class could not be found this function will return
+    a null pointer (\#nullPtr# in Haskell).
+
+::  getConstructorID: \#Ptr JVM -> Ptr JClassRef -> CString -> IO (Ptr JConstructorID)#
+    Find the *constructor id* based on a method descriptor. A method
+    descriptor is an encoding of the signature of a method like
+    it is stored inside a Java class file. For example the
+    method descriptor for the main function of a Java program is
+    \#([Ljava.lang.String)V# (a method \#(...)# that takes an array
+    \#[# of objects \#L# of type \#java.lang.String# as argument and
+    returns nothing, i.e. void \#V#). If the constructor does not
+    exist a null pointer is returned.
+
+::  getStaticMethodID: \#Ptr JVM -> Ptr JClassRef -> CString -> CString -> IO (Ptr JStaticMethodID)#
+    Find the *method id* of a static method. The first \#CString# argument is the
+    method descriptor, the second is the name of the method. Returns the
+    null pointer if the method does not exist.
+
+::  getMethodID: \#Ptr JVM -> Ptr JClassRef -> CString -> CString -> IO (Ptr JMethodID)#
+    Find the *method id* of a non-static method. The first \#CString# argument is the
+    method descriptor, the second is the name of the method. Returns the
+    null pointer if the method does not exist.
+
+::  getFieldID: \#Ptr JVM -> Ptr JClassRef -> CString -> CString -> IO (Ptr JFieldID)#
+    Find the *field id* of a static method. The first \#CString# argument is the
+    field descriptor, the second is the name of the field. Returns the
+    null pointer if the field does not exist.
+
+::  getStaticFieldID: \#Ptr JVM -> Ptr JClassRef -> CString -> CString -> IO (Ptr JStaticFieldID)#
+    Find the *field id* of a static field. The first \#CString# argument is the
+    field descriptor, the second is the name of the field. Returns the
+    null pointer if the field does not exist.
+
+
+reset
+
+=== Invoking Methods
+
+    Calling methods comprises 22 functions, 11 for each of the basic types, times two for
+    static and non-static methods. Each function takes a pointer to the JVM,
+    a class or object reference, and an array of values. The different types in the
+    name are designated by \#<T># and the result is designated by \#<R>#.
+
+small
+
+::  callStatic<T>Method: \#Ptr JVM -> Ptr JClassRef -> Ptr JStaticMethodID -> Ptr JValues -> IO <R>#
+    There are actually 11 functions, one for each primitive type, one for \#void#, one for \#Object# and
+    one for \#String# (the low level interface has some special interface for dealing with strings).
+    Invoke a static method. A static method is invoked on a class,
+    thus you have to give it a pointer to a class reference. The \#JValues# argument is an
+    array of values that are passed to the function. See *argument passing (\<sec:argumentPassing>)*
+    for further info. Returns the result of the method call (of type \#<R>#, i.e. one of
+    Int8, Int16, Int32, Int64, Float, Double, Word16 (a java char), Bool, a \#Ptr JObjectRef#
+    (which might be the \#nullPtr#) or a \#CString# (actually a \#Ptr Char#)).
+
+::  call<T>Method: \#Ptr JVM -> Ptr JObjectRef -> Ptr JMethodID -> Ptr JValues -> IO <R>#
+    There are actually 11 functions, one for each primitive type, one for \#void#, one for \#Object# and
+    one for \#String# (the low level interface has some special interface for dealing with strings).
+    Invoke a static method. Invoke a static method. A static method is invoked on an object,
+    thus you have to give it a pointer to an object reference. The \#JValues# argument is an
+    array of values that are passed to the function. See *argument passing (\<sec:argumentPassing>)*
+    for further info. Returns the result of the method call (of type \#<R>#, i.e. one of
+    Int8, Int16, Int32, Int64, Float, Double, Word16 (a java char), Bool, a \#Ptr JObjectRef#
+    (which might be the \#nullPtr#) or a \#CString# (actually a \#Ptr Char#)).
+
+reset
+
+=== Getting and Setting Fields
+
+    Reading and writing fields actually comprises 44 functions, 11 for the different basic types
+    (including void and String, as there is some special support for Strings),
+    times two for static and non-static fields, times two for reading or writing. Each of
+    these functions takes a pointer to the JVM, class reference for static fields
+    or an object reference for non-static fields, and the (if it is a setter) the value
+    to be set. The different types in the name are denoted by \#<T>#, in the result
+    type is given as \#<R>#.
+
+small
+
+::  get<T>Field: \#Ptr JVM -> Ptr JClassRef -> Ptr JStaticFieldID -> IO <R># \break
+    There are actually 10 functions, one for each primitive type, one for \#Object# and
+    one for \#String# (the low level interface has some special interface for dealing with strings).
+    Reads the value of a static field. Returns that value of type \#<R>#, i.e. one of
+    Int8, Int16, Int32, Int64, Float, Double, Word16 (a java char), Bool, a \#Ptr JObjectRef#
+    (which might be the \#nullPtr#) or a \#CString# (actually a \#Ptr Char#).
+
+::  set<T>Field: \#Ptr JVM -> Ptr JClassRef -> Ptr JStaticFieldID -> <A> -> IO ()# \break
+    There are actually 10 functions, one for each primitive type, one for \#Object# and
+    one for \#String# (the low level interface has some special interface for dealing with strings).
+    Sets a non-static field to a new value.
+    Returns nothing, i.e. \#()#.
+
+::  getStatic<T>Field: \#Ptr JVM -> Ptr JClassRef -> Ptr JStaticFieldID -> IO <R># \break
+    There are actually 10 functions, one for each primitive type, one for \#Object# and
+    one for \#String# (the low level interface has some special interface for dealing with strings).    
+    Reads the value of a static field.
+    Returns the result of that field of type \#<R>#, i.e. one of
+    Int8, Int16, Int32, Int64, Float, Double, Word16 (a java char), Bool, a \#Ptr JObjectRef#
+    (which might be the \#nullPtr#) or a \#CString# (actually a \#Ptr Char#).
+
+::  setStatic<T>Field: \#Ptr JVM -> Ptr JClassRef -> Ptr JStaticFieldID -> <A> -> IO ()# \break
+    There are actually 10 functions, one for each primitive type, one for \#Object# and
+    one for \#String# (the low level interface has some special interface for dealing with strings).
+    Sets a non-static field to a new value.
+    Returns nothing, i.e. \#()#.
+
+reset
+
+=== Argument Passing
+label sec:argumentPassing
+
+    Every function that passes multiple arguments to the JNI
+    requires a \#JValues# pointer, i.e. an array of multiple values.
+    Such arrays are represented as lists of \#JArg# values in Haskell,
+    where \#JArg# is given by the following algebraic data type:
+
+.haskell
+    data JArg
+      = BooleanA Bool
+      | CharA    Word16
+      | ByteA    Int8
+      | ShortA   Int16
+      | IntA     Int32
+      | LongA    Int64
+      | FloatA   Float
+      | DoubleA  Double
+      | StringA  String
+      | ObjectA  (Maybe JObject)
+small
+
+::  mkJValues: \#Ptr JVM -> [JArg] -> IO (Ptr JValues)# \break
+    Creates a new JValues pointer from the list of JArgs.
+
+::  setJValue<T>: \#Ptr JValues -> CInt -> <A> -> IO ()# \break
+    These are actually 9 functions, one for each type as distinguished
+    by the datatype \#JArg#, except for string. The \#CInt# argument
+    takes the index of the which array element is to be updated.
+    \#<A># denotes the actual type to be set.
+
+::  setJValueString: \#Ptr JVM -> Ptr JValues -> CInt -> CString -> IO ()# \break
+    The low level JNI interface has some special suppport for
+    Strings. This is purely for convenience. Creating a \#String#
+    object in the virtual machine requires an instance of
+    the virtual machine, thus this function takes an additional
+    pointer to the JVM as its first argument.
+
+reset
+
+=== Releasing Resources
+
+    Since the low level interface returns global references only,
+    we needs to release these references manually. Since we introduced
+    some basic type safety (by distinguishing at least \#JObjectRef#,
+    \#JClassRef#, and \#JThrowableRef#) we need to create one
+    function for each of this types:
+
+small
+
+::  releaseJObjectRef: \#Ptr JVM -> Ptr JObjectRef -> IO ()#
+
+::  releaseJClassRef: \#Ptr JVM -> Ptr JClassRef -> IO ()#
+
+::  releaseJThrowableRef: \#Ptr JVM -> Ptr JThrowableRef -> IO ()#
+
+::  release: \#FunPtr (Ptr a -> IO ())# \break
+    This is a special function which is needed by the medium level
+    interface in order to automatically release references.
+    Haskell features a special type \#ForeignPtr# which can
+    be associated with a \#FunPtr# which is invoked by the
+    Haskell garbage collector when a \#ForeignPtr# is no longer
+    in use in the Haskell runtime. A pointer to the following
+    C function is returned:
+
+.code
+    void release (jobject obj)
+    {
+        JavaVM* jvm;
+        jsize numCreatedVMs = 0;
+
+        GET_CREATED_JAVA_VMS(&jvm, 1, &numCreatedVMs);
+        if (numCreatedVMs == 1) {
+            JNIEnv* env;
+            if ((*jvm)->GetEnv(jvm, (void**) &env, FFIJNI_VERSION) == JNI_OK) {
+                (*env)->DeleteGlobalRef(env, obj);
+            } else {
+                // The thread is no longer attached.
+                // This can only happen if the virtual machine
+                // is being shut down by `destroyVM` but has not
+                // yet been shut down completely.
+            }
+        } else {
+            // The virtual machine has already been shut down.
+        }
+    }
+.
+
+
+reset
+
+=== Support for Complex Datatypes
+
+    While the JNI does have no special treatment for the String data type,
+    the low level interface does offer \#callStaticMethod#, \#getField#, etc.
+    for the String type, too. Arrays on the other hand are handled as ordinary
+    objects. It is however possible to treat Strings just like \#JObjectRef#s,
+    thus there are some functions to assist the programmer with these
+    objects.
+
+small
+
+::  newJString: \#Ptr JVM -> CString -> IO (Ptr JObjectRef)#
+
+::  charsFromJString: \#Ptr JVM -> Ptr JObjectRef -> IO (Ptr JChars)#
+
+::  bytesFromJString: \#Ptr JVM -> Ptr JObjectRef -> IO (Ptr JBytes)#
+
+::  releaseJChars: \#Ptr JVM -> Ptr JObjectRef -> CString -> IO ()#
+
+::  releaseJBytes: \#Ptr JVM -> Ptr JObjectRef -> CString -> IO ()#
+
+::  jstringToCString: \#Ptr JVM -> Ptr JObjectRef -> CString -> IO ()#
+
+::  new<T>Array: \#Ptr JVM -> Int32 -> IO ()#
+    The \#Int32# parameter takes the length of the array.
+
+::  newObjectArray: \#Ptr JVM -> Int32 -> Ptr JClass -> Ptr JObjectRef# \break
+    Additionally takes a pointer to a class in order to declare an
+    array for a specific component type (e.g. \#String[]#).
+    The array elements are initialized with \#null#.
+
+reset
+
+=== Reflection
+
+    These methods allow for retrieving information about Java objects.
+
+small
+
+::  getObjectClass: \#Ptr JVM -> JObjectRef -> IO (Ptr JClassRef)#
+
+::  isInstanceOf: \#Ptr JVM -> Ptr JObjectRef -> Ptr JClassRef -> IO Bool# \break
+    Checks whether the object referenced by \#JObjectRef# is
+    an instance of the class \#JClassRef#.
+
+reset
+
+=== Exception Handling
+
+    These functions are literally translated from the JNI, except for
+    \#exceptionOccurredClear#. Typically one has to check manually
+    for whether an exception has occurred or not (via \#exceptionCheck#),
+    than retrieve the exception (via \#exceptionOccurred#) and clear the
+    exception in the JVM (via \#exceptionClear#). \#exceptionOccurredClear#
+    replaces this three-step procedure with a single one that returns
+    a \#nullPtr# if no exception occurred, and has the side effect of
+    clearing the exception state if it did not return null.
+
+small
+
+::  exceptionCheck: \#Ptr JVM -> IO Bool#
+
+::  exceptionOccurredClear: \#Ptr JVM -> IO (Ptr JThrowableRef)#
+
+::  exceptionClear: \#Ptr JVM -> IO ()#
+
+::  exceptionOccurred: \#Ptr JVM -> IO (Ptr JThrowableRef)#
+
+
+reset
+
+=== Callbacks
+
+    The C part of the java-bridge library offers some special functions
+    for invoking Haskell functions from within Java. These functions
+    are not publicly exported by the low level interface. They are however
+    dynamically bound to native method stubs in the \#HFunction# class,
+    which is automatically loaded when the virtual machine is started up
+    via \#createVM#. The function \#registerCallbacks# takes a reference
+    to the \#HFunction# class and registers the special functions with
+    the native stubs.
+
+small
+
+::  registerCallbacks: \#Ptr JVM -> Ptr JClassRef -> IO Bool#
+
+reset
+
+    The exact mechanism for callbacks is discusses in section \<sec:callbacks>.
+    The implementation of \#registerCallbacks# is the following:
+
+.code
+    jboolean
+    registerCallbacks(vm_t* vmi, jclass hFunction) {
+        JNIEnv* env = vmi->env;
+
+        JNINativeMethod method;
+        jint result;
+
+        /* register native call function */
+        DEBUG1("Registering call(...): %p", _callCallback)
+
+        method.name = "call";
+        method.signature = "(JLjava/lang/reflect/Method;[Ljava/lang/Object;)Ljava/lang/Object;";
+        method.fnPtr = _callCallback;
+
+        result = (*env)->RegisterNatives(env, hFunction, &method, 1);
+        if (result < 0) {
+            (*env)->ExceptionDescribe(env);
+            return JNI_FALSE;
+        }
+        
+        /* register native release function */
+        DEBUG1("Registering release(...): %p", _releaseCallback)
+
+        method.name = "release";
+        method.signature = "(J)V";
+        method.fnPtr = _releaseCallback;
+
+        result = (*env)->RegisterNatives(env, hFunction, &method, 1);
+        if (result < 0) {
+            (*env)->ExceptionDescribe(env);
+            return JNI_FALSE;
+        }
+
+        return JNI_TRUE;
+    }
+
+
+=== Workarounds
+
+    There is one special function which is needed on Mac OS X if
+    the programmer wants to create an AWT or Swing application:
+
+    \#runCocoaMain :: IO ()#
+
+    Mac OS X has some special requirements on the threading of
+    graphical applications, namely the Cocoa Event Queue has to
+    be running on the main thread. It is therefore necessary
+    to fork a thread, continue the application on this other thread,
+    and start the cocoa event queue manually on the main thread.
+    That is what this function does. It is worth noting that the
+    function never returns, since naturally the event queue is
+    implemented as an inifinite loop (this is why the programmer
+    has to resort to another thread). The function is used
+    on \#runJavaGui# in the medium level interface and will
+    not do anything on all other platforms.
+
+    The implementation of this function is:
+
+.code
+    void
+    runCocoaMain()
+    {
+        #if defined(FFIJNI_MACOSX) && defined(FFIJNI_OSX_GUI)
+        DEBUG("Retrieving NSApp...")
+        void* clazz = objc_getClass("NSApplication");
+        void* app = objc_msgSend(clazz, sel_registerName("sharedApplication"));
+
+        DEBUG1("-> %p", app)
+
+        DEBUG("Starting cocoa main runloop")
+        objc_msgSend(app, sel_registerName("run"));
+        #endif
+    }
+.

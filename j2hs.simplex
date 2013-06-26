@@ -1,0 +1,20 @@
+
+newpage
+=   The j2hs Bindings Generator
+label sec:j2hs
+
+==  Prerequisites
+
+=== The Java Reflection API
+
+==  Design
+
+=== Circular References
+
+columns 2
+image-width 6cm
+image dependencies-circo.png
+colbreak
+image dependencies-neato.png
+endcolumns
+

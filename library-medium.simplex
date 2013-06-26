@@ -1,0 +1,82 @@
+
+=== Concurrency: c
+
+=== Garbage Collection: g
+
+=== OS X Issues: os x
+label sec:osxIssues
+
+=== Callbacks
+label sec:callbacks
+
+
+label sec:hFunctionClass
+    The \#HFunction# class looks like this:
+
+#java ../java-bridge/HFunction.java
+
+
+===
+
+small
+
+::  runJava: \#Java a -> IO a#
+
+::  runJava': \#[String] -> Java a -> IO a#
+
+::  initjava: \#[String] -> IO ()#
+
+::  runJavaGui: \#Java a -> IO ()#
+
+::  runJavaGui': \#[String] -> Java a -> IO ()#
+
+::  getClass: \#(Monad m) => JClass -> a -> Java (m (JConstructor a))
+
+::  newObject: \#JClass -> Java (Maybe JObject)#
+
+::  newObjectFrom: \#NewObject p b => JConstructor p -> b#
+
+::  getMethod: \#JClass -> MethodDescriptor p -> Java (Maybe (JMethod p))#
+
+::  getStaticMethod: \#JClass -> MethodDescriptor p -> Java (Maybe (JStaticMethod p))#
+
+::  bindMethod: \#MethodCall p b => JClass -> MethodDescriptor p -> Java (Maybe (JObject -> b))#
+
+::  bindStaticMethod: \#MethodCall p b => JClass -> MethodDescriptor p -> Java (Maybe (JObject -> b))#
+
+::  callMethod: \#MethodCall p b => JMethod p -> JObject -> b#
+
+::  callStaticMethod: \#StaticCall p b => JStaticMethod p -> JObject -> b#
+
+::  getField: \#Param a => JClass -> String -> a -> Java (Maybe (JField a))#
+
+::  getStaticField: \#Param a => JClass -> String -> a -> Java (Maybe (JStaticField a))#
+
+::  readField: \#Field a b => JField a -> JObject -> Java b#
+
+::  writeField: \#Field a b => JField a -> JObject -> a -> Java ()#
+
+::  readStaticField: \#Field a b => JStaticField a -> Java b#
+
+::  writeStaticField: \#Field a b => JStaticField a -> a -> Java ()#
+
+reset
+
+=== Utlity Functions
+
+small
+::  isInstanceOf: \#JObject -> JClass -> Java Bool#
+reset
+
+=== Interaction with the IO Monad
+
+small
+::  io: \#IO a -> Java a#
+
+::  liftIO: \#MonadIO m => IO a -> m a#
+
+::  forkJava: \#Java a -> Java (JavaThreadId a)#
+
+::  waitJava: \#JavaThreadId a -> Java (Either SomeException a)#
+
+reset
