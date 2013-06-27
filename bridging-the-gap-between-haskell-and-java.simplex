@@ -16,7 +16,7 @@
 @tocdepth 3
 
 %   @endnotes
-    \renewcommand\notesname{ }
+%   \renewcommand\notesname{ }
 
 @preamble
     \usepackage[font={small,it},labelfont=bf]{caption}

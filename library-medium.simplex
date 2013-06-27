@@ -1,36 +1,643 @@
+=== Haskell extensions being used
 
-=== Concurrency: c
+    While the low level interface is portable to all Haskell compilers
+    that support the Foreign Function Interface, the medium level
+    interface makes use of some extensions of the Haskell language.
+    It is not necessary to do so, but greatly enhances the usability
+    of the resulting API.
 
-=== Garbage Collection: g
+    The extensions being used are:
 
-=== OS X Issues: os x
-label sec:osxIssues
+:   MultiParamTypeClasses: \space \break
+    Type classes with multiple parameters effectively describe
+    relations between types. They are used in the medium level interface
+    to ensure that a given Haskell function corresponds to the
+    description of a given Java method. Examples of the use of
+    multi parameter type classes can be seen in the contexts
+    of \#callMethod#, \#bindMethod#, etc\^
+        GHC User's Guide, Version 7.6.2, § 7.6.1.1 Multi-parameter type classes
+        ^.
+
+:   FunctionalDependencies: \space \break
+    Multi parameter type classes are amlost unusable without some kind
+    of assistance for the type inference engine. Functional depencies
+    provide that assistance. Most prominently, functional dependencies
+    can fix the type of one parameter of a type class by making it
+    depend on another. This is used in the definition of the function
+    \#getMethod#, \#callMethod#, \#callMethodE#, etc\^
+        GHC User's Guide, Version 7.6.2, § 7.6.2 Functional dependencies
+        ^.
+
+:   FlexibleInstances: \space \break
+    Many instance declarations can simply not be given without
+    flexible instances, especially in the context of multi parameter
+    type classes. Specifically flexible instances are needed to
+    provide instances for method descriptors, see section
+    \<sec:methodDescriptors>\^
+        GHC User's Guide, Version 7.6.2, § 7.6.3.1 Relaxed rules for the instance head
+        ^.
+    
+:   FlexibleContexts: \space \break
+    If you want to mention a flexible instance in a context of
+    a function, instance, or type class declaration you need
+    also flexible contexts\^
+        GHC User's Guide, Version 7.6.2, § 7.6.3.1 Relaxed rules instance contexts
+        ^.
+
+:   UndecidableInstances: \space \break
+    While the name is rather scary, this extension just lifts a
+    constraint from the definition of type classes and class
+    instances, which may lead to undecidable instances -- i.e.
+    it becomes possible to write instances of which it can not
+    be decided whether there is one for a certain type or not.
+    The bad thing that could happen is that the type checker is sent to
+    an infinite loop. Since the java-bridge library does compile,
+    this is obviously not the case\^
+        GHC User's Guide, Version 7.6.2, § 7.6.3.3 Undecidable instances
+        ^.
+
+    These extensions are known to be supported not only by GHC,
+    but also by Hugs\^The Hugs 98 User Manuel § 7 An overview of Hugs extensions ^
+    (in fact some of them originated there).
+
+
+=== The Java Monad
+
+    As described in section \<sec:javaMonad> every action that is executed
+    in the JVM should be encapsulated in a custom monad, the Java monad.
+    The medium level interface defines that monad and offers the
+    function \#runJava#.
+
+small
+::  runJava\space: \#Java a -> IO a#
+::  runJava': \#[String] -> Java a -> IO a#
+reset
+
+    \#runJava# will internally call \#createVM# and \#destroyVM# from the
+    low level interface. \#runJava'# uses \#createVM'# instead and allows for
+    some additional arguments to the JVM, for example:
+
+.haskell
+    runjava' ["-Djava.class.path=/java"] javaAction
+.
+    This is the implementation of \#runJava'#:
+
+.haskell
+    runJava' opts f = do
+
+        str <- mapM newCString (augmentOpts opts)
+        ptr <- newArray str
+        vm  <- JNI.createVM' (fromIntegral $ length str) ptr
+
+        mapM_ free str >> free ptr
+
+        if vm == nullPtr then do
+                                libjvmPath <- JNI.getLibjvmPath >>= peekCString
+                                throw $ JvmException libjvmPath opts
+                         else return ()
+         
+        (result, _) <- finally (runStateT (_runJava f) (newJVMState vm))
+                               (JNI.destroyVM vm)
+
+        return result
+.
+
+    It is also possible to initialize the virtual machine once
+    in a Haskell process. The JVM will then live as long as the
+    Java process. When initialized using \#initJava#, \#runJava#
+    will not automatically tear down the virtual machine after
+    the last thread executed actions it:
+
+small
+::  initJava: \#[String] -> IO ()#
+reset
+
+    As mentioned in section \<sec:osxIssues>, Mac OS X has some
+    special requirements on GUI applications. It is therefore
+    necessary to run the Java monad using \#runJavaGui#. On all
+    other platforms \#runJavaGui# does exactly the same as
+    \#runJava#, it is therefore safe and still portable to always call
+    \#runJavaGui#.
+
+small
+::  runJavaGui\space: \#Java a -> IO ()#
+::  runJavaGui': \#[String] -> Java a -> IO ()#
+reset
+
+figure
+.java
+    import Foreign.Java
+
+    main = runJava $ do
+        (Just threadClass) <- getClass "java.lang.Thread"
+        currentThread <- threadClass `bindStaticMethod`
+                           "currentThread" ::= object "java.lang.Thread"
+        getName <- threadClass `bindMethod` "getName" ::= string
+
+        (Just thread) <- currentThread
+        (Just name) <- getName thread
+
+        io$ putStrLn name
+caption Exemplary usage of {\ttfamily runJava}
+endfigure
+
+:=  Implementation:
+    The Java monad is a State monad transformer that wraps the
+    IO monad. The state of that monad is a value of type \#JVMState#.
+
+.haskell
+    newtype Java a = Java { _runJava :: StateT JVMState IO a }
+      deriving (Monad, MonadState JVMState, Functor, MonadIO)
+    
+    data JVMState = JVMState {
+        -- | The actual pointer to the virtual machine.
+        jvmPtr :: Ptr Core.JVM,
+
+        -- some more fields. They actually only serve for the
+        -- caching of frequently used method IDs and are
+        -- omitted here for brevity.
+    }
+.
+    Note that this definition requires the \#GeneralizedNewtypeDeriving#
+    extension. One can omit the usage of this extension and implement
+    the \#return# and \#bind (>>=)# functions by hand
+    (after all, it is a simple state monad).
+
+
+=== Method and Field Descriptors
+label sec:methodDescriptors
+    
+    The low level interface requires the programmer to
+    explicitly request method or field IDs using method
+    and field descriptors that look like the internal format
+    of method and field descriptors in class files, i.e. strings
+    like \break
+    \#(JJ[IZLjava/lang/Object;[Ljava/util/reflect/Type;)J# \space.
+
+figure
+.haskell
+    data MethodDescriptor p = String ::= p
+
+    (-->) :: a -> x -> P a x
+    a --> x = P a x
+
+    infixr 9 -->
+    infixl 8 ::=
+
+    data Z = Z          ; boolean = Z
+    data C = C          ; char    = C
+    data B = B          ; byte    = B
+    data S = S          ; short   = S
+    data I = I          ; int     = I
+    data J = J          ; long    = J
+    data F = F          ; float   = F
+    data D = D          ; double  = D
+    data L = L String   ; object  = L
+    data V = V          ; void    = V
+    data A x = A x      ; array   = A
+    data X = X          ; string  = X
+
+    data P a x = P a x
+.
+caption The MethodDescriptor datatype.
+endfigure
+
+    These method descriptors are highly inconvenient to use.
+    Furthermore they do not feature any type safety, since in principle
+    any string can be used to request an ID from the JVM.
+    The medium level interface remedies this by introducing a dedicated
+    datatype \#MethodDescriptor#\^
+        Defined in Foreign.Java.Types and Foreign.Java.JNI.Types^.
+    A \#MethodDescriptor# is a value of the
+    form \#String ::= p# where \#p# is the signature of a Java method.
+    Signatures are represented as a value of the types \#Z#, \#C#, \#B#,
+    \#S#, \#I#, \#J#, \#F#, \#F#, \#L#, \#V#, \#A#, \#X#, or \#P#. These
+    are translations from the low level method descriptors into the
+    Haskell type system. Since these capital letters are a bit
+    unintuitive aliases are introduced: \#boolean#, \#char#, #byte#, etc.
+    It is worth noting that \#A# and \#X# actually do not exist in
+    the JNI. \#A# is a translation of \#[# and denotes arrays, \#X# is
+    an alias for \#L "java.lang.String"# and is needed for the
+    special support for strings that is offered by the low level interface
+    and of course by the medium level interface too.
+
+    The list of parameters to a function is church encoded, using
+    \#P# as \#Cons# operator (*P* is for *pair*). \#--># is a more
+    readable alias for \#P#.
+    It is now possible to give type safe method descriptors:
+
+small
+
+>!  Name
+>!  Low and Medium Level Method Descriptor
+>-
+
+>   main
+>#  ([Ljava/lang/String;)V
+>+
+>
+>#  "main" ::= array string --> void
+
+>-
+>   indexOf
+>#  ([Ljava/lang/Object;)I  
+>+
+>
+>#  "indexOf" ::= array (object "java.lang.Object") --> int
+
+>-
+>   plus
+>#  (LL)L
+>+
+>
+>#  "plus" ::= long --> long --> long
+
+>+
+reset
+
+    Method descriptors are being used by the functions \#getMethod#,
+    \#getStaticMethod#, \#bindMethod#, and \#bindStaticMethod#.
+    The \#getMethod#/\#getStaticMethod# functions return a \#JMethod p#
+    or a \#JStaticMethod p# respectively where \#p# is the type of the
+    method.
+
+    The functions \#bindStaticMethod#, \#bindMethod#, \#callStaticMethod#,
+    and \#callMethod# all have a type like the following:
+
+.ascii
+    MethodCall p b => p -> b
+.
+    \#p# is the type of the function, i.e the \#p# in \#String ::= p#
+    or the \#p# in \#JMethod p#. \#MethodCall# is a type class that
+    takes two parameters with a functional dependency that deduces
+    the type of \#b# from \#p#. This way the above functions will
+    themselves generate functions that correspond to the given type \#p#:
+
+small
+>!  Method Descriptor (without Name)
+>!  Type
+>!  Resulting Function
+>-
+
+>   object "java.lang.String" --> int
+>   P (L I)
+>   Maybe JObject -> Java Int32
+
+>+
+
+>   char --> int --> string
+>   P C (P I X)
+>   Word16 -> Int32 -> Java String
+
+>+
+
+>   void
+>   V
+>   Java ()
+
+>+
+
+>   string --> object "java.util.TreeMap"
+>   P (X L)
+>   String -> Java (Maybe JObject)
+
+reset
+
+    It is worth noting that this mechanism discards the actual type
+    of the object (i.e. \#java.util.TreeMap# in the last example
+    in the table above). The problem is that we can not deduce a
+    type from the string that specifies the name of the class
+    other then \#[Char]#. We could of course create type level names
+    like
+small
+    \#J (A (V (A (Dot (U (T (I (L (Dot (T_ (R (E (E (M_ (A (P Stop))))))))))))))))#
+reset
+    But that would hardly be useful at all\^^http://hackage.haskell.org/package/names
+        Albeit I have created a package which offers type level names
+        encoded like here which achieves usability by using the TemplateHaskell
+        extension to create type level names from strings.^.
+
+
+=== References
+
+    The low level interface requires the programmer to deal
+    with pointers and global references which have to be freed
+    manual. Pitfalls like null pointers or unsafe array access
+    lurk everywhere in the low level interface, just as they do
+    in C. To prevent this from happening the medium level
+    interface encapsulates pointers and references via \#newtype#
+    declarations so that the complexity of the underlying low
+    level interface is hidden. Methods dealing with these new
+    datatypes will only perform safe operations or provide
+    methods for handling errors (other than segfaulting).
+
+    Specifically these new datatypes are\^
+        Defined in Foreign.Java.Types^:
+
+.haskell
+    -- | A reference to an arbitrary Object.
+    newtype JObject = JObject { jobjectPtr :: ForeignPtr JObjectRef }
+
+    -- | A reference to a Class object.
+    newtype JClass = JClass { jclassPtr :: ForeignPtr JClassRef }
+
+    -- | A reference to an Exception.
+    newtype JThrowable = JThrowable { jthrowablePtr :: ForeignPtr JThrowableRef }
+
+    -- | A reference to an Array in the JVM.
+    data JArray e = JArray {
+        jarrayLength :: Int32,
+        jarrayPtr :: ForeignPtr JObjectRef
+      }
+.
+    The functions in the medium level interface all guarantee
+    that values of these types never represent a null reference.
+    Furthermore all of the internal references are \#ForeignPtr#
+    instead of \#Ptr#. \#ForeignPtr# have an associated finalizer
+    which will be triggered when the Haskell runtime system
+    garbage collects the \#ForeignPtr#.
+
+
+=== Garbage Collection
+label sec:garbageCollection
+    
+    The java-bridge library makes use of the Haskell 2010 type \#ForeignPtr#.
+    These pointers are pointers with an associated finalizer. We have already seen
+    the finalizer in the description of the low level interface (\#release#).
+
+    Whenever a function in the medium level interface retrieves a pointer
+    from the virtual machine, it creates a \#ForeignPtr# from it and returns
+    that, encapsulated in a new type which hides the actual implementation.
+    This way the programmer is freed from the burden of taking care of
+    releasing references, the Haskell runtime system will do it.    
+
+    The java-bridge library also allows Java code to call into Haskell code.
+    Therefore the JVM has to retrieve an \#HFunction# object which is
+    simply a pointer to a Haskell function.
+
+    The details of callbacks are covered in the next section.
+
 
 === Callbacks
 label sec:callbacks
 
+    For properly using a Java library from within Haskell (such as Swing)
+    it is crucial to be able to pass callbacks from Haskell to Java.
+    For example we would like to pass an \#ActionListener# to the
+    \#addActionListener(ActionListener l)# method of a \#javax.swing.JButton#.
+    In Java this is usually done by creating an anonymous class:
 
-label sec:hFunctionClass
+.java
+    button.addActionListener(new ActionListener() {
+        public void actionPerformed(ActionEvent e) {
+            // do Something
+        }
+    });
+.
+    We would like to do the same. In order to so so we will have
+    to create an ActionListener. Fortunately Java does have a tool
+    for this: *dynamic proxy classes*.
+
+    From the documentation on \#java.lang.reflect.Proxy#: \break
+    *A //dynamic proxy class// (simply referred to as a proxy class below)
+     is a class that implements a list of interfaces specified at runtime
+     when the class is created, with behavior as described below.
+     [...] A //proxy instance// is an instance of a proxy class.*\^
+        Java Platform Standard Edition 6, java.lang.reflect.Proxy^
+
+    We would like to pass a *proxy instance* of \#ActionListener#
+    to the \#addActionListener# method. For doing so we need a
+    \#java.lang.reflect.InvocationHandler# that delegates the
+    invocations to a Haskell function. Furthermore we need to export
+    a Haskell function from the Haskell runtime so that it can be called
+    from the outside.
+
+    The \#InvocationHandler# interface specifies a single method:
+
+    \#Object invoke(Object proxy, Method method, Object[] args)\#.
+
+    We can define an equivalent function in Haskell:
+
+    \#invoke :: JObject -> JObject -> JObject -> Java (Maybe JObject)#
+
+    Unfortunately this function can not be exported by the FFI,
+    since every type that is mentioned in a signature needs to be a
+    primitive type (\#Int32#, #Char#, ...), a pointer (\#Ptr#),
+    or it must be isomorphic to one of these types (\#newtype X = X Int32#).
+
+    If we use the low level interface instead we can create
+    a function that can be exported by the FFI:
+
+.haskell
+    invoke :: Ptr JObjectRef -> Ptr JObjectRef -> Ptr JObjectRef -> IO (Ptr JObjectRef)
+.
+    This function is also returning a result in the IO monad instead
+    of the Java monad. This is necessary since the allowable return
+    types for functions that are exported by the FFI are only the
+    types which can be used as arguments or any of these types encapsulated
+    in the IO monad.
+
+    We will refer to the type of this function as \#WrappedFunc# as we
+    are going to pass it through a *wrapper* function:
+
+.haskell
+    type WrappedFunc = Ptr JObjectRef -> Ptr JObjectRef -> Ptr JObjectRef -> IO (Ptr JObjectRef)
+.
+    This function can be exported by a *dynamic wrapper*\^
+        Haskell 2010 Language Report § 8.5.1 Standard C Calls -- dynamic wrapper^:
+
+.haskell
+    foreign import ccall safe "wrapper"
+        wrap :: WrappedFunc -> IO (FunPtr WrappedFunc)
+.
+    In order to dynamically implement a Haskell interface using a
+    proxy class we need to pass a wrapped function to a special
+    Java class that creates a *proxy instance* from this function.
+    We are going to call this class \#HFunction#. This class will
+    also implement the \#InvocationHandler# and doing the actual
+    calling back.
+
     The \#HFunction# class looks like this:
 
 #java ../java-bridge/HFunction.java
+.
+    A shortcoming of Java and the JNI is that there is no
+    way of representing a function pointer (whereas both C and Haskell
+    have such a thing -- \#FunPtr# in Haskell). It is therefor
+    necessary to cast the function pointer obtained by \#wrap#
+    into an integer and pass that integer to the virtual machine.
+    This is considered bad practice in the C community and it is
+    not covered by the C standard (functions and data could be
+    separated and have completely different implementations, for example
+    in a machine with *Harvard architecture*).
 
+    Being able to cast integers to function pointers is however
+    covered by the POSIX standard, and it is also guaranteed to
+    work in Windows. It is in fact part of the Win 32 API,
+    for example for loading dynamic libraries. Here is the part
+    of the java-bridge which dynamically loads the \#libjvm# library
+    (in Windows):
 
-===
+.code
+    HINSTANCE hVM = LoadLibrary(_libjvm_path);
+    if (!hVM) {
+        return -41;
+    }
+    _GetCreatedJavaVMs =
+        (jint (*)(JavaVM**,jsize,jsize*))
+        GetProcAddress(hVM, "JNI_GetCreatedJavaVMs");
+    _CreateJavaVM =
+        (jint (*)(JavaVM**,void**,void*))
+        GetProcAddress(hVM, "JNI_CreateJavaVM");
+.
+    This snippet requires casting integers to a function pointers
+    (the very same example could be given in POSIX, looking only
+    slightly different).   
+    
+    Now that we have put an end to all uncertainty at this point,
+    we can move on and create a function \#implementInterfaceBy#
+    which uses a function like the first proposal for an invoke function,
+    creates a \#WrappedFunc# from it, wraps it using \#wrap_# and
+    passes it to \#HFunction.makeFunction#, which returns a
+    \#proxy instance# for the class specified by its name:
+
+.haskell
+    type InterfaceFunc = JObject -> JObject -> JObject -> Java (Maybe JObject)
+
+    foreign import ccall safe "wrapper"
+        wrap_ :: WrappedFunc -> IO (FunPtr WrappedFunc)
+
+    implementInterfaceBy :: String        -- ^ name of the interface to be implemented
+                         -> InterfaceFunc -- ^ implementation for @invoke@
+                         -> Java JObject  -- ^ A proxy instance
+    implementInterfaceBy ifaceName func = do
+        iface <- getClass ifaceName >>= asObject . fromJust
+        (Just clazz) <- getClass "HFunction"
+        success <- registerCallbacks clazz
+        if success then return () else fail "JNI native methods could not be registered"
+        makeFunction <- clazz `bindStaticMethod` "makeFunction"
+            ::= object "java.lang.Class" --> long --> object "java.lang.Object"
+        (Just impl) <- io (intify func) >>= makeFunction (Just iface)
+        return impl
+      where
+        wrap :: InterfaceFunc -> IO (FunPtr WrappedFunc)
+        wrap f = do
+
+            let proxyFunc vm self method args = do
+                    self'   <- Core.JObject <$> newForeignPtr JNI.release self
+                    method' <- Core.JObject <$> newForeignPtr JNI.release method
+                    args'   <- Core.JObject <$> newForeignPtr JNI.release args
+
+                    jobj <- runJava vm (f self' method' args')
+
+                    case jobj of
+                        Nothing -> return nullPtr
+                        Just (Core.JObject ptr) -> withForeignPtr ptr return
+
+            wrappedFunc <- wrap_ proxyFunc
+
+            return wrappedFunc
+
+        -- Wrap a frunction and cast the resulting FunPtr to an Int64 (jlong)
+        intify :: InterfaceFunc -> IO Int64
+        intify = fmap (fromIntegral . ptrToIntPtr . castFunPtrToPtr) . wrap
+
+        runJava :: Ptr Core.JVM -> Java a -> IO a
+        runJava vm f = runStateT (_runJava f) (newJVMState vm) >>= return . fst
+.
+    Note that this implementation already uses \#getClass# and \#bindStaticMethod#
+    from the medium level interface and turns \#InterfaceFunc# functions
+    (which are in the style of the medium level interface) into proxy instances,
+    not a \#WrappedFunc# -- \#WrappedFunc# is only used as an intermediate.
+
+    \#implementInterfaceBy# will also be used to allow Java classes to
+    call Haskell code. This is discussed in section
+
+---
+.   FIXME h2js part
+---
+
+=== Concurrency
+label sec:concurrency
+
+    It is worth noting that programs that use the java-bridge library
+    need to be compiled using a threaded Haskell runtime (In GHC this
+    is induced by the \#-threaded# switch).
+
+    Threads can be started within the Java monad using the
+    \#forkJava# method. While in principle you could also use the
+    functions provided by \#Control.Concurrent#, lifted into the Java
+    monad using \#liftIO#, I recommend using the \#forkJava# function.
+    It provides a clean and fail safe implementation for starting a thread
+    in Haskell in the presence of a virtual machine. The important
+    thing is, that \#forkJava# uses \#forkOS#, which spawns a *bound* thread.
+    Threads in concurrent Haskell are lightweight threads which can be
+    moved from one OS thread to another. Using lightweight threads may
+    lead to conflicts between the Haskell runtime and the Java virtual
+    machine.
+
+    A Java method might be executed in one thread that uses
+    for example Javas \#ThreadLocal# storage. If another method is invoked
+    which tries to access that same storage, but from a different thread
+    (the Haskell runtime might have moved the invoking lightweight thread
+    to another OS thread) the thread local state will be lost (at least it
+    is momentarily not accessible by this method).
+
+    An implementation for \#forkJava# and \#waitJava# is:
+
+.haskell
+    newtype JavaThreadId a = JavaThreadId (MVar (Either SomeException a))
+
+    forkJava :: Java a -> Java (JavaThreadId a)
+    -- ^ A utility function for forking an OS thread which runs in the
+    -- Java Monad. It will return a 'JavaThreadId' which you can wait on
+    -- using 'waitJava'.
+    forkJava t = io $ do
+        lock <- newEmptyMVar
+        _ <- forkOS $ do
+            result <- try $ runJava t
+            putMVar lock result
+        return $ JavaThreadId lock
+
+    waitJava :: JavaThreadId a -> Java (Either SomeException a)
+    -- ^ Wait for a Java Thread to exit. If the thread exits abnormally
+    -- (that is, if an exception occurred), this function will return
+    -- @Left SomeException@. Otherwise it will return the result of the
+    -- computation as @Right a@.
+    waitJava (JavaThreadId mvar) = io $ takeMVar mvar
+.
+
+:=  Thread safety of function calls between runtimes: is already provided
+    by the Haskell FFI. The foreign imports that access the C functions of
+    the java-bridge library are marked as \#safe#, which tells the Haskell
+    compiler to ensure that concurrent access is correctly synchronized
+    with garbage collection etc. It is however only activated when compiled
+    using a threaded runtime. If not, the virtual machine might invoke a
+    Haskell function concurrently and thereby crash the runtime system of
+    Haskell.
+
+    Concurrent calls from a Haskell process into the virtual machine are
+    safe in the sense that they do not crash the virtual machine. In
+    all other aspect they work like an ordinary concurrent invocation
+    from an arbitrary Java thread, hence the same problems as in ordinary
+    Java programming may arise.
+
+=== OS X Issues: os x
+label sec:osxIssues
+
+.haskell
+    runJavaGui' opts java = runJava' opts $ do
+        _ <- forkJava java
+        io JNI.runCocoaMain
+.
+
+=== Retrieving Classes, Fields, and Methods
 
 small
 
-::  runJava: \#Java a -> IO a#
-
-::  runJava': \#[String] -> Java a -> IO a#
-
-::  initjava: \#[String] -> IO ()#
-
-::  runJavaGui: \#Java a -> IO ()#
-
-::  runJavaGui': \#[String] -> Java a -> IO ()#
-
 ::  getClass: \#(Monad m) => JClass -> a -> Java (m (JConstructor a))
+
+::  getConstructor: \#(Monad m) => JClass -> a -> Java (m (JConstructor a))
 
 ::  newObject: \#JClass -> Java (Maybe JObject)#
 
@@ -44,9 +651,21 @@ small
 
 ::  bindStaticMethod: \#MethodCall p b => JClass -> MethodDescriptor p -> Java (Maybe (JObject -> b))#
 
+reset
+
+=== Calling Methods
+
+small
+
 ::  callMethod: \#MethodCall p b => JMethod p -> JObject -> b#
 
 ::  callStaticMethod: \#StaticCall p b => JStaticMethod p -> JObject -> b#
+
+reset
+
+=== Reading and Writing Fields
+
+small
 
 ::  getField: \#Param a => JClass -> String -> a -> Java (Maybe (JField a))#
 
@@ -60,6 +679,7 @@ small
 
 ::  writeStaticField: \#Field a b => JStaticField a -> a -> Java ()#
 
+
 reset
 
 === Utlity Functions
@@ -71,12 +691,24 @@ reset
 === Interaction with the IO Monad
 
 small
-::  io: \#IO a -> Java a#
+::  io: \#IO a -> Java a# \break
+    Execute an IO action within the Java monad.
 
-::  liftIO: \#MonadIO m => IO a -> m a#
+.haskell
+    runJava $ do
+        ... java ...
+        io $ putStrLn "Haskell IO"
+        ... java ...
 
-::  forkJava: \#Java a -> Java (JavaThreadId a)#
+::  forkJava: \#Java a -> Java (JavaThreadId a)# \break
+    This function forks a Java computation in a new Haskell thread
+    and returns a \#JavaThreadId#. This is not a thread id by which
+    Java knows a thread, but an object which can be used inside
+    the Java monad to wait on a thread using \#waitJava#.
 
-::  waitJava: \#JavaThreadId a -> Java (Either SomeException a)#
+::  waitJava: \#JavaThreadId a -> Java (Either SomeException a)# \break
+    Waits for a thread forked using \#forkJava#. If an exception
+    occurred in that thread, it is returned as \#Left SomeException#.
+    If not, the result of type \#a# is returned.
 
 reset

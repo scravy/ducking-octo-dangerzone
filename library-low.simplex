@@ -471,7 +471,8 @@ reset
     implemented as an inifinite loop (this is why the programmer
     has to resort to another thread). The function is used
     on \#runJavaGui# in the medium level interface and will
-    not do anything on all other platforms.
+    not do anything on all other platforms. A further discussion
+    of this topic is done in section \<sec:osxIssues>.
 
     The implementation of this function is:
 
