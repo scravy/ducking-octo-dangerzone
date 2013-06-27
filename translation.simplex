@@ -287,8 +287,6 @@ label sec:javaSubtypes
     to have an instance of the corresponding type class.
 
     A suitable translation of the signature for the Java method
-    signature
-
 .java
     String getenv(String)
 .

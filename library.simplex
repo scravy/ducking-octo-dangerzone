@@ -151,12 +151,74 @@ image-defaults
     \#Foreign.Java.JNI.Safe# and \#Foreign.Java.JNI.Unsafe#. This
     subsection comprises a short walk through the interface:
 
-:=  How to read the signatures:
-
 #include library-low.simplex
 
 ==  Medium Level Interface
 
 #include library-medium.simplex
 
+==  Summary
+
+    In this section the design and implementation of the
+    \#java-bridge# library was presented. The library
+    comprises two interfaces, a low level interface and
+    a high level interface.
+
+:=  The low level interface: is a straight-forward binding
+    to the C API that is offered by the Java Native Interface.
+    It also introduces some convenience functions for dealing
+    with strings and arrays and. It also offers some functions
+    which per se have no value to the programmer, but which are
+    being used by the medium level interface to define some
+    more complex constructs.
+
+    The programmer is however responsible for checking for
+    exceptions and managing references. The API is also
+    rather clumsy, since it requires the programmer to
+    create method descriptors like \#(JJ)Ljava/lang/String;#
+    and deal with #nullPtr# values.
+
+:=  The medium level interface: is a more convenient alternative
+    to the low level interface. It automatically manages references
+    by using Haskell's \#ForeignPtr#s. It will also hide every
+    sign of C, i.e. the programmer will only have to deal with
+    well known datatypes and \#JObject#s, \#JClass#s, etc., but
+    not with \#Ptr#, \#nullPtr# values, or the like. By the means
+    of several Haskell extensions a greater type safety is achieved,
+    you can for example not call a function retrieved by
+    \#"meth" ::= int --> long --> void# with 3 arguments (which
+    is totally possible in the low level interface by passing a
+    malformed \#JValues# pointer). Also the medium level interface
+    offers a tiny DSL for discovering methods, constructors, and fields.
+
+    It is however by no means an adequate translation of every possible
+    Java interface. For example it is still possible to call a method on an incompatible
+    object or to pass an incompatible object as an argument which expects
+    a specific object type. Also it requires the programmer to
+    lookup method, constructor, and field IDs prior to using them, which
+    results in huge sections of boiler plate code.
+
+:=  A high level interface: was presented in section \<sec:translation>,
+    i.e. a translation of Java classes into Haskell functions
+    with adequate types that preserve type safety and subtyping.
+    Such an interface demands that some extra glue code is generated
+    which comprises the translated version of a Java class.
+    For the purpose of automatically creating such high level bindings
+    to Java a tool, \#j2hs# has been built, which is presented in
+    the next section.
+
+:=  A haskell-bridge library?: The reader has surely noticed that
+    no effort so far has been undertaken to call Haskell from within
+    Java (except for to call *back* from Java). This is due to the
+    fact that Haskell functions can not be easily accessed by the outside
+    world. Through the JNI *every* public Java function can be accessed,
+    whereas Haskell functions have to be *explicitly* exported using
+    an \#export# statement. While the Foreign Function Interface allows
+    for exporting Functions as \#FunPtr#s (and even \#StablePtr#s to data
+    that is allocated on the Haskell heap), it is not possible to access
+    arbitrary functions.
+
+    Accessing Haskell from another language will therefore always require
+    some glue code to be generated which exports the functions that
+    should be available in that other language.
 

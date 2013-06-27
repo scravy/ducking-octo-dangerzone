@@ -405,7 +405,7 @@ reset
     which is automatically loaded when the virtual machine is started up
     via \#createVM#. The function \#registerCallbacks# takes a reference
     to the \#HFunction# class and registers the special functions with
-    the native stubs.
+    these native stubs.
 
 small
 
@@ -416,6 +416,7 @@ reset
     The exact mechanism for callbacks is discusses in section \<sec:callbacks>.
     The implementation of \#registerCallbacks# is the following:
 
+label func:registerCallbacks
 .code
     jboolean
     registerCallbacks(vm_t* vmi, jclass hFunction) {

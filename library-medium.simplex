@@ -358,26 +358,6 @@ reset
     garbage collects the \#ForeignPtr#.
 
 
-=== Garbage Collection
-label sec:garbageCollection
-    
-    The java-bridge library makes use of the Haskell 2010 type \#ForeignPtr#.
-    These pointers are pointers with an associated finalizer. We have already seen
-    the finalizer in the description of the low level interface (\#release#).
-
-    Whenever a function in the medium level interface retrieves a pointer
-    from the virtual machine, it creates a \#ForeignPtr# from it and returns
-    that, encapsulated in a new type which hides the actual implementation.
-    This way the programmer is freed from the burden of taking care of
-    releasing references, the Haskell runtime system will do it.    
-
-    The java-bridge library also allows Java code to call into Haskell code.
-    Therefore the JVM has to retrieve an \#HFunction# object which is
-    simply a pointer to a Haskell function.
-
-    The details of callbacks are covered in the next section.
-
-
 === Callbacks
 label sec:callbacks
 
@@ -495,12 +475,14 @@ label sec:callbacks
     slightly different).   
     
     Now that we have put an end to all uncertainty at this point,
-    we can move on and create a function \#implementInterfaceBy#
+    we can move on and create a function \#implementInterfaceBy#\^
+        Defined in and exported by Foreign.Java.Bindings^
     which uses a function like the first proposal for an invoke function,
     creates a \#WrappedFunc# from it, wraps it using \#wrap_# and
     passes it to \#HFunction.makeFunction#, which returns a
     \#proxy instance# for the class specified by its name:
 
+label func:implementInterfaceBy
 .haskell
     type InterfaceFunc = JObject -> JObject -> JObject -> Java (Maybe JObject)
 
@@ -550,12 +532,78 @@ label sec:callbacks
     (which are in the style of the medium level interface) into proxy instances,
     not a \#WrappedFunc# -- \#WrappedFunc# is only used as an intermediate.
 
-    \#implementInterfaceBy# will also be used to allow Java classes to
-    call Haskell code. This is discussed in section
+    A remark on invoke: The alert reader may wonder why a \#WrappedFunc#
+    has three arguments while the \#call# method in \#HFunction# has only
+    two arguments. The third argument (actually the first, but nevertheless
+    an additional argument) is given by the JNI and references the calling
+    class (if a native static function was called) or the calling object
+    (if a native non-static function was called). The JNI also gives
+    a pointer to the instance of the invoking JVM, which is why there is
+    a new \#runJava# function defined within \#implementInterfaceBy#, which
+    executes the action in the Java monad with that pointer.
 
----
-.   FIXME h2js part
----
+    \#implementInterfaceBy# will also be used to allow Java classes to
+    call Haskell code. This is discussed in section \<sec:invokingHaskell>.
+
+    Using our new asset we can finally pass an \#ActionListener# to
+    \#addActionListener#:
+
+.haskell
+    runJava $ do
+        (Just jbuttonClass) <- getClass "javax.swing.JButton"
+        (Just jbutton) <- newObject jbuttonClass
+
+        addActionListener <- jbuttonClass `bindMethod`
+            "addActionListener" ::= object "java.awt.event.ActionListener" --> void
+
+        let handler :: InterfaceFunc
+            handler _hfunc _method args = do
+                -- handle the event, args contains an array
+                -- with arguments, of which the first is an
+                -- @ActionEvent@
+                return ()
+
+        implementInterfaceBy "java.awt.event.ActionListener" handler
+            >>= addActionListener jbutton
+.
+
+    
+=== Garbage Collection
+label sec:garbageCollection
+    
+    The java-bridge library makes use of the Haskell 2010 type \#ForeignPtr#.
+    These pointers are pointers with an associated finalizer. We have already seen
+    the finalizer in the description of the low level interface (\#release#).
+
+    Whenever a function in the medium level interface retrieves a pointer
+    from the virtual machine, it creates a \#ForeignPtr# from it and returns
+    that, encapsulated in a new type which hides the actual implementation.
+    This way the programmer is freed from the burden of taking care of
+    releasing references, the Haskell runtime system will do it.    
+
+:=  Releasing function pointers: is also necessary. In section \<sec:callbacks>
+    the \#HFunction# class was presented which is a Java equivalent
+    for Haskell's \#FunPtr# (which the Java standard library unfortunately
+    lacks). Java classes can have a \#finalize# method which is called
+    when the garbage collector is freeing a class. The \#finalize#
+    function in \#HFunction# will call the native static method \#release#
+    in the HFunction class which takes as argument a function pointer
+    (cast to a long). \#release# will have been registered by
+    \#implementInterfaceBy# (page \(func:implementInterfaceBy)) via
+    \#registerCallbacks# (page \(func:registerCallbacks)). \#release#
+    is registered with a function that is exported by the Haskell
+    part of the java-bridge library, \#freeFunPtr#\^
+        Defined in and exported by Foreign.Java.Bindings^:
+
+.haskell
+    foreign export ccall freeFunPtr :: FunPtr WrappedFunc -> IO ()
+
+    freeFunPtr :: FunPtr WrappedFunc -> IO ()
+    freeFunPtr ptr = freeHaskellFunPtr ptr
+.
+    \#freeHaskellFunPtr# is provided by the Haskell FFI\^
+        Defined in Foreign.Ptr^.
+
 
 === Concurrency
 label sec:concurrency
@@ -622,31 +670,163 @@ label sec:concurrency
     from an arbitrary Java thread, hence the same problems as in ordinary
     Java programming may arise.
 
-=== OS X Issues: os x
+=== OS X Issues
 label sec:osxIssues
 
+    Graphical User Interfaces are implemented via Cocoa on Mac OS X.
+    The port of AWT to Mac OS X is known as *CocoaAWT*. Both Cocoa and AWT
+    do have distinct event queues. Cocoa has a
+    requirement on the event queue which CocoaAWT inherits: The Cocoa event
+    queue has to be running on the first thread\^^http://developer.apple.com
+    -- Cocoa Threading Programming Guide, Version 2010-04-28^.
+    If a Haskell process starts up, it will be the process running on the
+    main thread. Initially it will be the only thread running.
+
+    When starting up a virtual machine, the start up sequence is initiated on
+    the main thread, but new threads will be created which are not the
+    main thread. For example the JVM starts a thread for catching
+    uncaught exceptions, another thread for garbage collection, etc.
+    
+    Both the AWT event queue as well as the
+    Cocoa event queue are initially not running. When the first AWT
+    action is executed in the JVM, the AWT event thread (the thread which
+    handles the event queue) will be started up. If that first AWT action
+    was issued by the main thread, CocoaAWT will detect that it has been
+    invoked from the main thread where the Cocoa event queue should be
+    running. CocoaAWT will therefore do the right thing and fail with an
+    error:
+
+footnotesize
+.ascii
+    wing[1883:707] Cocoa AWT: Apple AWT Java VM was loaded on first thread -- can't start AWT.
+        0   liblwawt.dylib       0x0000000117e87ad0 JNI_OnLoad + 468
+        1   libjava.dylib        0x00000001026076f1      Java_java_lang_ClassLoader_00024[...]
+        2   ???                  0x000000010265af90 0x0 + 4335185808
+    )
+.
+reset
+
+    The solution is to manually initialize the AWT system on a
+    thread other than the main thread. This will at least render
+    a window -- and freeze. The reason for the freeze is that
+    CocoaAWT assumes that a Cocoa event queue is already running
+    on the main thread (Starting the Cocoa event queue normally is the very
+    first thing a graphical application does). It therefore waits
+    for events from the Cocoa event queue (events are handled by
+    Cocoa and than delegated to CocoaAWT which handles them on the
+    AWT event queue) which is not running at all! Thanks to the extremely
+    dynamic nature of the Objective-C runtime (Cocoa is an Objective-C
+    framework) we do not get an error or anything, the application just
+    freezes as its request for gets lost and the AWT event queue will
+    be blocked indefinitely.
+
+    To ultimately solve the problem we have to do initialize the
+    Cocoa event queue ourselves. The initialization of a the event
+    queue is normally done when a Cocoa application starts up.
+    The "Apple AWT Java VM" obviously does not do this by itself but
+    assumes that this has already been done (probably since it is being
+    invoked via libjvm instead of in standalone process). Therefore
+    we try to be a good host and create the AWT event queue:
+
+.code
+    void* clazz = objc_getClass("NSApplication");
+    void* app = objc_msgSend(clazz, sel_registerName("sharedApplication"));
+    objc_msgSend(app, sel_registerName("run"));
+.
+    This piece of code is provided by the \#runCocoaMain# function
+    which was presented in the low level interface.
+
+    Since the Cocoa event queue will occupy the main thread
+    once its started, we have to resort to another thread.
+    Therefore a \#runJavaGui'# function is defined in the medium
+    level interface, which transparently does that for us:
+    
 .haskell
     runJavaGui' opts java = runJava' opts $ do
         _ <- forkJava java
         io JNI.runCocoaMain
 .
 
+=== Exception Handling
+
+    Each of the functions \#callMethod#, \#callStaticMethod#, \#newObject#,
+    and \#newObjectFrom# come on three versions: as (using \#callMethod# exemplary)
+    \#callMethod#, \#callMethodE#, and \#callMethodX# (i.e. plain, suffixed with \#X#,
+    and suffixed with \#E#). The JNI requires that the programmer manually checks for
+    exceptions, using \#exceptionCheck# (see low level interface). Both the plain version
+    as well as the functions suffixed with \#E# will do this check. The plain version
+    will call the Java monads \#fail# method if an exception occurred (i.e. re-raise
+    the exception). The \#E# functions on the other hand always have the
+    ultimate return type of \#Java (Either JThrowable a)# where \#a# is the type which
+    would be returned by the plain version.
+
+    The \#X# methods do not check for exceptions and should only be used
+    if the programmer is sure that the invoked method will definitely not raise
+    an exception.
+
+figure
+.haskell
+    -- Will @fail@ in case of an exception.
+    (Just thread) <- callStaticMethod currentThread
+
+    -- thread' :: Either JThrowable (Maybe JObject)
+    thread' <- callStaticMethodE currentThread
+endfigure
+
+
 === Retrieving Classes, Fields, and Methods
 
 small
 
-::  getClass: \#(Monad m) => JClass -> a -> Java (m (JConstructor a))
+::  getClass: \#(Monad m) => String -> Java (m JClass)# \break
+    Find a Java class, return \#Nothing# it the class does not exist
+    (Actually this function can be used with any monad, it will call the
+    \#fail# function if the class does not exist, which in case of the
+    \#Maybe# monad would be \#Nothing#).
 
-::  getConstructor: \#(Monad m) => JClass -> a -> Java (m (JConstructor a))
+::  getConstructor: \#(Monad m) => JClass -> a -> Java (m (JConstructor a))# \break
+    Retrieve a constructor ID (encapsulated in a #JConstructor#) or fail
+    (e.g. Nothing) if there is no constructor with the given signature.
 
-::  newObject: \#JClass -> Java (Maybe JObject)#
+::  newObject: \#JClass -> Java (Maybe JObject)# \break
+    Create an object using the default constructor for a given class.
+    If that constructor is not accessible, \#fail# (e.g. Nothing).
+    \break Example: \#newObject stringClass >>= maybe (...fail...) (\x -> ...success...)#.
 
-::  newObjectFrom: \#NewObject p b => JConstructor p -> b#
+::  newObjectE: \#JClass -> Java (Either JThrowable (Maybe JObject))# \break
+    \#E# variant of \#newObject#.
 
-::  getMethod: \#JClass -> MethodDescriptor p -> Java (Maybe (JMethod p))#
+::  newObjectX: \#JClass -> Java (Maybe JObject)# \break
+    \#X# variant of \#newObject#.
 
-::  getStaticMethod: \#JClass -> MethodDescriptor p -> Java (Maybe (JStaticMethod p))#
+::  newObjectFrom: \#NewObject p b => JConstructor p -> b# \break
+    Creates an object from a previously retrieves constructor.
 
+::  newObjectFromE: \#NewObjectE p b => JConstructor p -> b# \break
+    \#E# variant of \#newObjectFrom#.
+
+::  newObjectFromX: \#NewObjectX p b => JConstructor p -> b# \break
+    \#X# variant of \#newObjectFrom#.
+
+::  getMethod: \#JClass -> MethodDescriptor p -> Java (Maybe (JMethod p))# \break
+    Retrieve a method id from the Java monad.
+    \#fail# if the method does not exist or can not be retrieved
+    (e.g. \#Nothing#).
+
+::  getStaticMethod: \#JClass -> MethodDescriptor p -> Java (Maybe (JStaticMethod p))# \break
+    Retrieve a static method id from the Java monad.
+    \#fail# if the method does not exist or can not be retrieved
+    (e.g. \#Nothing#).
+reset
+
+    \#bindMethod# and \#bindStaticMethod# are convenience functions
+    that can be used to directly retrieve a Haskell function \#b#
+    from a \#MethodDescriptor p#. The will \#fail# in the Java monad
+    (i.e. raise an ioError) if the method can not be retrieved, while
+    \#getMethod# and \#getStaticMethod# will only fail in the monad \#m#
+    (which may be the Maybe monad, or the error monad).    
+
+small
 ::  bindMethod: \#MethodCall p b => JClass -> MethodDescriptor p -> Java (Maybe (JObject -> b))#
 
 ::  bindStaticMethod: \#MethodCall p b => JClass -> MethodDescriptor p -> Java (Maybe (JObject -> b))#
@@ -655,15 +835,35 @@ reset
 
 === Calling Methods
 
+    Functions for calling methods.
+
 small
 
-::  callMethod: \#MethodCall p b => JMethod p -> JObject -> b#
+::  callMethod: \#MethodCall p b => JMethod p -> JObject -> b# \break
+    Call a method. \#JMethod p# must be retrieved using \#getMethod#.
+    \#p# determines the type of the function \#b#.
 
-::  callStaticMethod: \#StaticCall p b => JStaticMethod p -> JObject -> b#
+::  callMethodE: \#MethodCallE p b => JMethod p -> JObject -> b# \break
+    \#E# variant of \#newObjectFrom#.
+
+::  callMethodX: \#MethodCallX p b => JMethod p -> JObject -> b# \break
+    \#X# variant of \#newObjectFrom#.
+
+::  callStaticMethod: \#StaticCall p b => JStaticMethod p -> JObject -> b# \break
+    Call a static method. \#JStaticMethod p# must be retrieved using
+    \#getStaticMethod#. \#p# determines the type of the function \#b#.
+
+::  callStaticMethodE: \#StaticCallE p b => JStaticMethod p -> JObject -> b# \break
+    \#E# variant of \#newObjectFrom#.
+
+::  callStaticMethodX: \#StaticCallX p b => JStaticMethod p -> JObject -> b# \break
+    \#X# variant of \#newObjectFrom#.
 
 reset
 
 === Reading and Writing Fields
+
+    Functions for reading and writing fields.
 
 small
 
@@ -685,7 +885,8 @@ reset
 === Utlity Functions
 
 small
-::  isInstanceOf: \#JObject -> JClass -> Java Bool#
+::  isInstanceOf: \#JObject -> JClass -> Java Bool# \break
+    Checks whether the \#JObject# is an instance of the given \#JClass#.
 reset
 
 === Interaction with the IO Monad
@@ -712,3 +913,4 @@ small
     If not, the result of type \#a# is returned.
 
 reset
+

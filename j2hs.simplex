@@ -1,13 +1,332 @@
 =   The j2hs Bindings Generator
 label sec:j2hs
 
+    The \#j2hs# bindings generator is a tool that is capable of converting
+    the public API of Java classes to a Haskell representation which can
+    be used to work with Java libraries from within Haskell.
+
 ==  Prerequisites
 
-=== The Java Reflection API
+    First and foremost the bindings generator will have to be able to
+    read the interface of the given Java classes. Fortunately the
+    Java Standard Platform offers the *Java Reflection API* which can
+    be used for doing exactly that. The \#java-bridge# which was presented
+    in the last section can be used to access the *Java Reflection API*.
+
+    The Java Reflection API is a very clean API for gathering information
+    about Java classes and we do not intend to discuss it any further,
+    as this is beyond the scope of this thesis. We assume a certain familiarity
+    of the reader with the Java Reflection API, if not, Suns website offers
+    fairly good introduction to the topic (after all it is just another API).
 
 ==  Design
 
+    The bindings tool should be able to completely translate a given set
+    of Java classes or Java packages using the translation scheme that was
+    proposed in section \<sec:translation>. For doing a complete translation it will
+    have to analyze and translate not only the given classes or packages
+    but also any packages that are referenced by them.
+
+    The bindings generator should thus be able to not only reflect a
+    Java class, but also to find the dependencies of such a class, and apply
+    that procedure exhaustively.
+
+    The target of the translation should be a set of Haskell modules
+    that represent the given Java classes and packages and their dependencies.
+
+=== Implementation Details
+
+    Up to this point we have discusses (1) a translation scheme for
+    expressing Java interfaces in Haskell, (2) the java-bridge library
+    for accessing Java methods from within Haskell and calling back into
+    Haskell, (3) the necessary prerequisites for building a high level
+    bindings generator.
+
+    In section \<sec:translation> we have left out questions concerning
+    implementation details, while in section \<sec:library> we have focused
+    on implementation details very much. The only question that is left
+    is how the actual implementation of the proposed Haskell interface
+    that results from the translation of a Java API looks like and how it
+    is connected with the \#java-bridge# library. This will be addressed 
+    in the following subsections.
+
+:=  The actual translation: of a Java API will be done as proposed in
+    section \<sec:translation>. That is, names are translated as
+    discussed, and so functions and data types are created just like
+    described:
+
+*   For each Java type, a type class is generated which acts as
+    some kind of *marker interface* which can be used to express
+    that a specific type actually represents a Java type that
+    can be used with the interface (as in API) of the originating
+    Java definition.
+
+*   For each Java type, a \#newtype# declaration is generated as
+    discussed in section \<sec:javaObjects>. The \#ObjectReference# in this
+    data constructor is actually the type \#JObject# which we have seen
+    in the discussion of the \#java-bridge# library.
+
+*   The implementation of a function is a do block
+    which retrieves the arguments to the function via \#toInt#, \#toLong#,
+    \#toChar# etc. as discussed in section \<sec:primitiveTypes>. These
+    type classes and the instances for the primitive types are given
+    in a supporting library that will be offered as part of the java-bridge
+    library (in the module \#Foreign.Java.Bindings#). The documentation
+    to this Haskell module can be found in the appendix.
+
+*   A functions implementation will have to lookup its corresponding
+    Java method id using the functions from the java-bridge library
+    and invoke it accordingly. The result can than be converted to
+    the requested return type using a polymorphic return type, 
+    as discussed in \<sec:returnTypesAndExceptions>. The supporting
+    type classes \#ObjectResult#, \#IntResult#, etc. can be found in
+    the support module \#Foreign.Java.Bindings#.
+
+figure
+.haskell
+    {- | @virtual equals(java.lang.Object) -> boolean@ -}
+    equals :: (JNIS.BooleanResult boolean,
+               Java.Lang.Object__.Object this,
+               Java.Lang.Object__.Object v1)
+           => this -> v1 -> JNI.Java boolean
+    equals this a1 = do
+        (P.Just clazz) <- JNI.getClass "java.lang.Object"
+        (P.Just method) <- clazz `JNI.getMethod` "equals" JNI.::=
+            JNI.object "java.lang.Object" --> JNI.boolean
+        this' <- JNI.asObject this
+        a1' <- P.Just <$> JNI.asObject a1
+        result <- JNI.callMethodE method this' a1' 
+        JNIS.toBooleanResult result
+
+    {- | @virtual native final getClass() -> java.lang.Class@ -}
+    getClass :: (Java.Lang.Object__.Object this,
+                 JNIS.ObjectResult (object (Java.Lang.Class__.Class' v2)))
+             => this -> JNI.Java (object (Java.Lang.Class__.Class' v2))
+    getClass this = do
+        (P.Just clazz) <- JNI.getClass "java.lang.Object"
+        (P.Just method) <- clazz `JNI.getMethod` "getClass" JNI.::=
+            JNI.object "java.lang.Class"
+        this' <- JNI.asObject this
+        result <- JNI.callMethodE method this' 
+        JNIS.toObjectResult result
+
+    {- | @virtual native hashCode() -> int@ -}
+    hashCode :: (JNIS.IntResult int,
+                 Java.Lang.Object__.Object this)
+             => this -> JNI.Java int
+    hashCode this = do
+        (P.Just clazz) <- JNI.getClass "java.lang.Object"
+        (P.Just method) <- clazz `JNI.getMethod` "hashCode" JNI.::= JNI.int
+        this' <- JNI.asObject this
+        result <- JNI.callMethodE method this' 
+        JNIS.toIntResult result
+caption A sample of the code generated by j2hs: equals(Object), getClass(), and toString().
+endfigure
+
 === Circular References
+
+    A straight-forwards translation of a Java API would be to create exactly one
+    module for each package. Such a module would however tend to get rather big
+    and there would be many overlapping identifiers, since many objects may
+    define methods with the same name. A better approach is therefore to create
+    a Haskell module for each Java class, which contains the datatype definitions
+    as well as the function declarations for this Java class.
+
+    Unfortunately this approach still comes with a problem: Classes in Java
+    may reference each other mutually. That is, a class \#A# may import
+    a class \#B# and a class \#B# may import a class \#B#. While this should
+    be the case in Haskell too (the langauge report states in Chapter 5
+    "Modules may be mutually recursive."\^Haskell 2010 Language Report § 5 Modules^),
+    it actually is not so. No Haskell compiler that the author knows of supports
+    mutually recursive modules or whose imports form a cycle (though there
+    are some work arounds, like \#hs-boot# files, non of them cover the
+    problem completely).
+
+    Fortunately the inheritance graph of Java classes is a Tree, i.e.
+    does not contain any cycles. It is therefore at least possible to compile
+    the typeclass and datatype declarations. It turns out that this
+    solves our problem completely, all we have to do is to split up
+    the modules which represent a Java class into to modules: One that
+    describes the types and their inheritance relationships, and another
+    one that actually implements their functions. Since function signatures
+    only ever mention types and no other functions they will not require
+    importing any other module that contains functions, only modules
+    that contain types. Modules that contain types on the other hand
+    can be compiled without any knowledge about their functions and
+    they will never form a cycle.
+
+    Example: The classes A, B, and C have mutual dependencies.
+    The translated Haskell modules could not be compiled, since the
+    module imports would form a cycle.
+
+columns 2
+
+.java
+    public interface A {
+        A a1();
+        B b1();
+        C c1();
+    }
+    public interface B extends A {
+        A a2();
+        B b2();
+        C c2();
+    }
+    public interface C extends A {
+        A a3();
+        B a3();
+        C a3();
+    }
+.
+colbreak
+
+.neato
+    digraph G {
+        A -> B
+        B -> C
+        C -> A
+    }
+endcolumns
+
+    If we split up the type class declarations into modules A__, B__, and C__, and
+    leave the functions in modules A, B, C, than we do not have a problem with circular
+    dependencies:
+
+.dot
+    digraph G {
+
+        B__ -> A__
+        C__ -> A__
+
+        A -> A__
+        A -> B__
+        A -> C__
+
+        B -> A__
+        B -> B__
+        B -> C__
+
+        C -> A__
+        C -> B__
+        C -> C__
+
+    }
+.
+
+    It is now also possible to create modules for Java packages that comprise
+    the type declarations of the classes contained in a package, since
+    every type name exists only once in a package. We can just not import the modules.
+    This is even a good thing, as it will allow the programmer to write imports like
+    this:
+
+.haskell
+    import Java.Lang
+    import qualified Java.Lang.Object as Object
+    import qualified Java.Lang.String as String
+.
+    The first import imports types and typeclasses \#Object#, \#Object'#,
+    \#String#, \#String'#, etc. while the second two imports import
+    the functions of these methods. Since both \#Object# and \#String#
+    have a \#toString# method we are able to differentiate the two by
+    using qualified imports:
+
+.haskell
+    main = runJava $ do
+        (Just obj) <- new'Object
+        (Just str) <- new'String
+
+        (Just str1) <- Object.toString obj
+        (Just str2) <- String.toString obj
+.
+    Though we have to admit that this is a rather artifical example,
+    since \#toString# is actually defined in the class \#Object# and
+    since the JVM performs late binding (toString is a virtual method
+    and therefore \#Object.toString# will invoke \#String#'s \#toString#
+    method).
+
+
+=== Dependency Hell
+
+    The \#j2hs# library should be able to translate the Java standard
+    library that accompanies Java SE 6 or Java SE 7. The Java standard
+    library comprises about 3300 classes in more than 180 packages.
+    Due to the problems presented in the previous section this will
+    result in roughly 7000 modules to be created. Trying to compile
+    this is practically impossible since the memory that GHC needs
+    to compile such a lot of modules amount to several gigabytes
+    (whether this can be considered a bug in GHC or not is debatable).
+    However, even if GHC would not blow your memory, there is a
+    fairly technical problem with compiling 7000 modules in one go:
+    Neither GHC nor \#cabal-install# (a Haskell build tool) support
+    compiling such a huge amount of classes. Cabal for example
+    silently exits with exitcode \#127#.
+
+    Therefore we need to reduce the number of packages the number
+    of packages that can be compiled in one go. Surely the Java
+    standard library can be clustered into smaller components that are
+    independent from each other? Figure \<fig:javaDependencies> shows
+    the dependencies between the packages of Java SE 6.
+
+    In the left graph the packages are arranged in a circle. The three
+    dense corners -- if it is sensible to speak about corners in a
+    circle -- are the packages \#java.lang#, \#java.util#, and \#java.io.#
+    The black arc on the left is Swing.
+
+    The right graph shows the same dependencies, laid out in a different
+    way (not forced in a circle). The situation looks rather bad.
+
+    In fact if you take all packages that a single package depends on,
+    directly or indirectly (i.e. all nodes that are reachable in the dependency graph),
+    do this for all packages and create the intersection of the resulting set,
+    that leaves you with a core of 89 packages comprising about 1800 classes.
+
+    A solution is to identify the strongly connected components in
+    the class dependency graph and sort them topologically. The resulting
+    list of strongly connected components can be compiled one after another
+    (beginning with a component that has no outgoing edges).
+    In the Java SE 7 for example the largest component in this list counts
+    63 nodes, with \#java.lang.String# and \#java.lang.Object# among them.
+
+    The algorithm implemented in the j2hs will do the following:
+
++   Exhaustively find all dependencies for the classes that are to be
+    translated, using the Java Reflection API and the java-bridge to access
+    the JVM;
++   build the dependency graph of all the classes that were found.
++   Identify the strongly connected components;
+    (for example by applying Tarjan's strongly connected components algorithm);
++   Sort them topologically;
++   Group the resulting list into segments that are not mutually recursive
+    (this is done as to create compilable packages of Haskell modules
+    which are not too huge but also not to small, the latter would otherwise
+    result in very many packages).
+
+    The segment size for the last step can actually be configured
+    using j2hs. By applying this procedure the 3300 classes from
+    Java SE 7 which are to be translated into nearly 7000 modules
+    can be grouped into four packages of about 840 modules each,
+    which can be compiled by cabal and GHC without any hassle.
+
+    Here is a sample run of the \#j2hs# tool -- without showing the
+    generated sources of course (the \#-X# flags advises \#j2hs# to
+    attempt to translate the whole standard library available
+    on the host platform):
+
+.ascii
+    >>> ./dist/build/j2hs/j2hs -X -s840 -pcabal.tpl
+    Initializing JVM... Done.
+    Gathering reflection information... Done
+        (found 3341 classes).
+    Attempting to find clusters... Done
+        (found 2897 strongly connected components in 752 ranks).
+    Identified 4 segments of lengths (841, 841, 842, 817).
+    Generating modules for 841 classes in /j2hs/bindings/1... Done.
+    Generating modules for 841 classes in /j2hs/bindings/2... Done.
+    Generating modules for 842 classes in /j2hs/bindings/3... Done.
+    Generating modules for 817 classes in /j2hs/bindings/4... Done.
+    Generating modules for 184 packages in /j2hs/bindings... Done.
+
+figure
 
 columns 2
 image-width 6cm
@@ -15,4 +334,10 @@ image dependencies-circo.png
 colbreak
 image dependencies-neato.png
 endcolumns
+
+caption Dependencies between Java packages.
+label fig:javaDependencies
+endfigure
+
+
 
