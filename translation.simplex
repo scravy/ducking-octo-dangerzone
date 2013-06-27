@@ -1265,4 +1265,22 @@ endfigure
     whereas the selection of an appropriate instance can be
     done at compile time in Haskell.
 
+=== Summary
 
+    While a possible translation of Haskell to Java seems feasible,
+    even easy, at first, it turns out it is not. Although the core
+    of Haskell is a very simple language (we have seen that everything
+    is data of a certain type, types have certain kinds, and that's
+    pretty much it), the devil is in the details. Expressing type
+    constructors and higher kinded type variables in
+    Java is simply not possible (or at least not in all cases).
+
+    We have not yet looked at
+
+*   how to translate names from Haskell to Java;
+*   how to deal with the different execution models of Haskell and Java;
+*   how to deal with exceptions
+*   how to deal with 
+
+    
+    

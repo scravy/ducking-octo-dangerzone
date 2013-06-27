@@ -74,7 +74,7 @@ reset
     to Java bears several problems.
 
     Section \<sec:library> than explains the design and implementation
-    of the *java-bridge* library, which focuses in technical details
+    of the *java-bridge* library, which focuses on technical details
     like concurrency and garbage collection between, and how the
     Java Virtual Machine and the Haskell runtime affect each other.
 
@@ -85,15 +85,16 @@ reset
 
     These tools are used in section \<sec:examples> to demonstrate
     how a Haskell programmer could use the Java standard library without
-    leaving the Haskell programming language: (1) A GUI application
-    utilizing the Java Swing UI Toolkit and (2) a database application
-    using the *Java database connectivity* (JDBC).
+    leaving the Haskell programming language:A GUI application
+    utilizing the Java Swing UI Toolkit (actually a very simple calculator
+    written in Swing).
 
     We conclude with an evaluation of the tools built and compare them
     to other projects that aim to achieve some kind of interoperability
     between Haskell and Java.
 
-    Footnotes are realized as endnotes and uniquely numbered throughout
-    this document.
-
+    Citations are markes as such by "..." and footnotes. An exhaustive
+    list of references is maintained in the appendix. To keep the footnotes
+    clear, only the name of a document that the citation is from is mentioned.
+    The exact reference is to be looked up in the appendix.
 

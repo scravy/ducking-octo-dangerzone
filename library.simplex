@@ -149,11 +149,22 @@ image-defaults
     The core of the java-bridge library is a direct translation of
     the JNI into Haskell. These bindings are located in the modules
     \#Foreign.Java.JNI.Safe# and \#Foreign.Java.JNI.Unsafe#. This
-    subsection comprises a short walk through the interface:
+    subsection comprises a short walk through the API defined in
+    these two modules.
 
 #include library-low.simplex
 
 ==  Medium Level Interface
+
+    The medium level interface is located in a package
+    \#Foreign.Java#. It exports functions for looking up
+    method IDs, field IDs, constructor IDs, without
+    exposing the Java Native Interface directly, thus
+    the programmer will not have to deal with pointers
+    directly. Programming with the medium level interface
+    is safe in the sense that no low level methods which
+    could provoke a segmentation fault or the like are
+    exposed.
 
 #include library-medium.simplex
 
