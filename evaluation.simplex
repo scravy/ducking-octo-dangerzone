@@ -1,20 +1,21 @@
-=   Evaluation
+=   Summary
 label sec:evaluation
 
     In this thesis a successful translation of Java APIs into Haskell APIs
-    has been conducted. Also a library which glues Haskell and Java together
-    has been presendet 
+    has been conducted. The use of sophisticated features of Haskell's type
+    system allows for a flexible and extensible translation of Java APIs.
+    Also a library which glues Haskell and Java together has been presented 
     Furthermore: A tool that automatically creates high level bindings has been built,
     and it is capable of translating the API of the Java standard library in
     such a way that its functionality can be exploited by Haskell application.
     This was demonstrated by a very simple calculator.
 
-    What is missing though is the possiblity
+    What is missing though is the possibility
     to call arbitrary Haskell functions from within the Java virtual machine.
     This is difficult for several reasons: While the FFI absolutely allows for
     the bidirectional interaction with other languages, there is no simple way
     of analyzing existing Haskell modules other than analyzing the sources code.
-    It it also not possible to create a library such as the java bridge which
+    It it also not possible to create a library such as the java-bridge which
     does not need to generate any glue code at all. This is due to the fact
     that Haskell functions need to be exported explicitly, which again requires us to
     generate glue code for which we would need to reflect on the Haskell modules
@@ -24,20 +25,124 @@ label sec:evaluation
     the translation of Haskell APIs to Java: The type system. While
     at its core a simple language, the type system is partly too complex
     to be adequately mapped into Java. Namely higher kinded types and
-    subtyping are very hard to get right (which is presumably the reason
+    subtyping in the same place are very hard to get right (which is presumably the reason
     for why higher kinded type variables do not exist in Java in the first place).
-    
 
-    
+    There is a third argument not properly spelled out yet:
+    It is highly unlikely that the translation of Haskell APIs into
+    Java is useful at all. Many Haskell libraries are fairly
+    general and aim for supporting the Haskell programmer with
+    Haskell idioms that reduce boiler plate or exhibit useful properties
+    which are captured by their types. A good example is the
+    Parsec library which provides parser combinators. Using those in
+    Java would look really awful, let alone since we would need to
+    find a unique representation of operators with only alphanumeric
+    characters.
 
+    In the introduction it is said that it might be useful for a
+    Java programmer to outsource certain parts of a Java application
+    to a Haskell application. This is not the same as using Haskell
+    libraries. It is also possible with the java-bridge library,
+    though the programmer has to undertake some manual effort.
+    By means of the \#implementInstaceBy# function she can implement
+    a Java interface in Haskell which can transparently be used in
+    Java. All that is left to the programmer is create an exported
+    function that returns the proxy instance for the desired interface.
+    Accessing this native function can be done for example using
+    *Java Native Access (JNA)* a library providing for easier
+    incorporation of foreign code into Java code than the JNI does.
+
+    From the perspective of a Haskell program this approach
+    would look like just having a weird entry point, instead of
+    \#main :: IO ()# there would be a\#main :: InterfaceFunc#.
+    
 
 ==  Related work
 
-:   Lambada - Haskell as a better Java:
+    Several other attempts at connecting Haskell and Java have been
+    made, too much to discuss them all. Most of them share a common
+    property: They are defunct by now. Many more look like abandoned
+    hobbyists projects that never had a feature set comparable to
+    the java-bridge and the bindings generator presented in this
+    thesis.
+
+:=  One of the most promising attempts: has been made with //Lambada -
+    Haskell as a better Java// by Erik Meijer and Sigbjorn Finne,
+    published in 2001 in the *Electronic Notes in Theoretical Computer Science 41 No 1*.
+
+    Judging by the abstract of the paper it seems to have the
+    same goals as this thesis. Looking in to it we see similar ideas,
+    but there are notable differences. Subtyping for example
+    is not encoded via type classes but via *phantom types*.
+    Also there is no monad that wraps the virtual machine, but
+    the reference to a JVM is hidden away using unsafe operations
+    and IORefs. Calling Haskell code back from Java is completely
+    different, as it uses another tool -- "HDiet" -- which
+    is capable of loading Haskell libraries as if they were ordinary
+    dynamic libraries and can therefor access arbitrary Haskell
+    functions. "HDiet" seems to be a product on some earlier
+    work which connected COM\^Component object modell^ with Haskell.
+
+    The tools presented in the paper are nevertheless also
+    defunct by now. Since it was published in 2001 I assume
+    that it uses an early version of the Haskell FFI. The FFI has
+    only been incorporated into the Haskell language standard
+    in 2011 with the release of Haskell2010.
+
+:=  Another recent development: is *Frege*, a Haskell fork that
+    runs in the virtual machine. Frege is not source compatible with
+    Haskell, but it is an ongoing effort to create a functional programming
+    language much like Haskell for the JVM.
     
 
-:   
-
 ==  Further directions
+
+    Since the feature set of the bindings generated by \#j2hs# can be easily
+    extended by defining new instances of the relevant type classes
+    the thought comes to mind to write more marshallers, for example
+    an instance that creates lists from arrays or association lists from
+    maps and so on.
+
+    Furthermore it would be nice if the j2hs tool would be able to
+    make use of Java annotations such as \#@NotNull#. This way the translated
+    bindings could be more concise and allow for less illegal usage
+    to remain unseen by the type checker.
+
+    While I firmly believe that the translation of Haskell APIs to Java
+    in order to use Haskell libraries in Java is useless, I do think
+    that it could be worthwhile to transpile Haskell into Java. Also it
+    might be interesting to add JNI calls to the the Haskell FFI
+    -- an option which is explicitly anticipated in the language report:
+    "Only the semantics of the calling conventions ccall and stdcall
+    are defined herein; more calling conventions may be added in future
+    versions of Haskell."\^Haskell 2010 Language Report § 8.4.1 Calling
+    Conventions^.
+    
+    Last but not least: The library needs testing an real world use.
+    At the time of this writing the java-bridge is roughly two months old.
+
+
+==  Where can the java-bridge be found?
+
+    The java-bridge and associated tools can be found on HackageDB
+    at \[http://hackage.haskell.org/]. It compromises the packages
+    \#j2hs#, \#java-reflect#, \#java-bridge-extras#, and \#java-bridge-examples#.
+    You can also do a \#cabal install java-bridge# to install the latest version
+    from Hackage (after doing a \#cabal update#).
+
+
+==  Acknowledgements
+
+    I would like to thank Christian Hörbelt, Konrad Reiche, Benedict Roeser,
+    Georg Schütze and André Zoufahl for proof-reading this thesis. Albeit some of
+    them do neither speak Haskell nor Java, all of them provided me with valuable
+    input.
+
+    Also I have to mention how great a place the Haskell community is.
+    During the work on this thesis I created several libraries, like the
+    \#multimap# package, that I needed in this project. I have never gotten
+    responses to a software package so fast and with so much support.
+    I will definitely submit an article about the java-bridge in the
+    next Haskell Community Activities and Libraries report.
 
 

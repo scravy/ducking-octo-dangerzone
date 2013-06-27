@@ -13,7 +13,7 @@
     \break
     In dieser Arbeit wird die Möglichkeit einer Übersetzung von Schnittstellen
     zwischen Haskell und Java Bibliotheken untersucht. Außerdem werden eine
-    Bibliothek und ein Werkzeug entwickelt um um die virtuelle Maschine aus
+    Bibliothek und ein Werkzeug entwickelt um die virtuelle Maschine aus
     Haskell Prozessen heraus zu nutzen und um automatische Übersetzungen
     von Java APIs nach Haskell durchzuführen.
     vorgesetellt
@@ -39,7 +39,7 @@ image siegel.jpg
 reset
 
 .latex
-    \vspace{6em}
+    \vspace{3em}
     \section*{Selbstständigkeitserklärung}
 .
     Hiermit bestätige ich, dass ich die vorliegende Ausarbeitung mit dem
@@ -80,42 +80,59 @@ newpage
 
 appendix
 
-=   Abbreviations
+=   References
 
-::  API:
-    Application Programming Interface
+    //The Haskell 2010 Committee, Simon Marlow (editor)//
+    \break The Haskell 2010 Language Report
+    \break \[http://www.haskell.org/definition/haskell2010.pdf]
+    \break
 
-::  AWT:
-    Abstract Window Toolkit
+    //James Gosling, Bill Joy, Guy Steele, Gillad Bracha, Alex Buckley//
+    \break The Java Language Specification -- Java SE 7 Edition (2013-02-28)
+    \break \[http://docs.oracle.com/javase/specs/jls/se7/jls7.pdf]
+    \break
 
-::  FFI:
-    Foreign Function Interface
+    //Sheng Liang//
+    \break The Java Native Interface -- Programmer's Guide and Specification
+    \break Addison-Wesley, 1999
+    \break
 
-::  GHC:
-    Glasgow Haskell Compiler
+    //Simon Marlow, Simon Peyton Jones, Wolfang Thaller//
+    \break Extending the Haskell Foreign Function Interface with Concurrency
+    \break Microsoft Research Ltd., Cambridge U.K
+    \break Submitted to The Haskell Workshop, 2004
+    \break \[http://community.haskell.org/~simonmar/papers/conc-ffi.pdf]
+    \break
 
-::  Java SE:
-    Java Standard Edition
+    //Brent A Yorgey, Stephanie Weirich, Julien Cretin, Simon Peyton Jones, Dimitrios Vytiniotis//
+    \break Giving Haskell a Promotion
+    \break \[http://research.microsoft.com/en-us/people/dimitris/fc-kind-poly.pdf]
+    \break
 
-::  JDBC:
-    Java Database Connectivity
+    //The GHC Team//
+    \break The Glorious Glasgow Haskell Compilation System User's Guide, Version 7.6.2
+    \break \[http://www.haskell.org/ghc/docs/7.6.2/html/users_guide/]
+    \break
 
-::  JDK:
-    Java Developtment Kit
+    //Simon Marlow//
+    \break Parallel and Concurrent Programming in Haskell
+    \break \[http://community.haskell.org/~simonmar/par-tutorial.pdf]
+    \break
+    
+    //Gilad Bracha, Martin Odersky, David Stoutamire, Philip Wadler//
+    \break GJ: Extending the Java programming language with type parameters
+    \[http://homepages.inf.ed.ac.uk/wadler/gj/Documents/gj-tutorial.pdf]
+    \break
 
-::  JNI:
-    Java Native Interface
+    //Simon Peyton Jones//
+    \break Tackling the Awkward Squad: monadic input/output, concurrency, exceptions, and foreign-language calls in Haskell
+    \break April 7, 2010
+    \break \[http://research.microsoft.com/en-us/um/people/simonpj/papers/marktoberdorf/mark.pdf]
+    \break
 
-::  JRE:
-    Java Runtime Environment
+    //Simon Peyton Jones, Andrew Gordon, Sigbjorn Finne//
+    \break Concurrent Haskell
+    \break 
 
-
-#include references.simplex
-
-%
-    =   Notes
-    label sec:endnotes
-    endnotes
-
-%   #include sources.simplex
+newpage
 figures

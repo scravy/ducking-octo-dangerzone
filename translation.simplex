@@ -1180,7 +1180,7 @@ endfigure
 
     This way we not only have resolved the issue with higher kinded type
     variables, but also we eliminated the context \#Functor f =># by moving
-    it into the signature. So we have less to translate, hooray!
+    it into the signature.
 
     There is a cave-at though. Consider the following, admittedly rather complex,
     function signature taken from the Parsec parser combinator library:
