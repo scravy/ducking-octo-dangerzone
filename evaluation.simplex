@@ -1,6 +1,36 @@
 =   Evaluation
 label sec:evaluation
 
+    In this thesis a successful translation of Java APIs into Haskell APIs
+    has been conducted. Also a library which glues Haskell and Java together
+    has been presendet 
+    Furthermore: A tool that automatically creates high level bindings has been built,
+    and it is capable of translating the API of the Java standard library in
+    such a way that its functionality can be exploited by Haskell application.
+    This was demonstrated by a very simple calculator.
+
+    What is missing though is the possiblity
+    to call arbitrary Haskell functions from within the Java virtual machine.
+    This is difficult for several reasons: While the FFI absolutely allows for
+    the bidirectional interaction with other languages, there is no simple way
+    of analyzing existing Haskell modules other than analyzing the sources code.
+    It it also not possible to create a library such as the java bridge which
+    does not need to generate any glue code at all. This is due to the fact
+    that Haskell functions need to be exported explicitly, which again requires us to
+    generate glue code for which we would need to reflect on the Haskell modules
+    that we want to utilize.
+
+    Besides these technical problems there are other issues regarding
+    the translation of Haskell APIs to Java: The type system. While
+    at its core a simple language, the type system is partly too complex
+    to be adequately mapped into Java. Namely higher kinded types and
+    subtyping are very hard to get right (which is presumably the reason
+    for why higher kinded type variables do not exist in Java in the first place).
+    
+
+    
+
+
 ==  Related work
 
 :   Lambada - Haskell as a better Java:

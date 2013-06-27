@@ -89,13 +89,6 @@ endfigure
     by using type classes. But as we will see type classes are our
     weapon of choice for realizing subtype polymorphism in Haskell.
     Mixing both the ordinary overloading of methods with fields,
-    constructors, and subtype annotations will definitely pollute
-    any sensible translation with overly verbose type annotations.
-
-    There is another issue with overloading: It is typically achieved
-    by using type classes. But as we will see type classes are our
-    weapon of choice for realizing subtype polymorphism in Haskell.
-    Mixing both the ordinary overloading of methods with fields,
     constructors, and subtype annotations will definitely pollute any
     sensible translation with overly verbose type annotations. Adding
     an encoding for subtype polymorphism will most certainly lead to
@@ -1279,8 +1272,31 @@ endfigure
 
 *   how to translate names from Haskell to Java;
 *   how to deal with the different execution models of Haskell and Java;
-*   how to deal with exceptions
-*   how to deal with 
+*   how to deal with exceptions.
 
+    Since both Haskell and Java do have exception, we could
+    simply raise a \#HaskellException# if anything goes wrong when
+    invoking a Haskell function.
+
+    The different execution models are a bit tougher:
+    While in principle very similar, there are corner cases
+    which may go wrong. As we have seen, Haskell can have
+    infinite lists and make something useful out of a
+    computation that would not return in a strict execution
+    model. Care must be taken when translating such a function,
+    e.g. by translating it not as a list but as an \#Iterable#.
+    The most important thing to keep in mind is that the
+    invocation should not force the value to be evaluated as
+    this would be exactly what could result in an infinite loop.
+    Instead we have to reproduce the semantics by implementing
+    explicit laziness.
+
+    The most difficult part is the translation of names from Haskell
+    to Java. Haskell allows the programmer to define arbitrary
+    operators, and the authors of many Haskell libraries do use
+    this feature exhaustively. In order to translate such functions
+    we would have to come up with a translation scheme that in any
+    case will look ugly to the eye of both the trained Haskell
+    as well the fine Java programmer.
     
     

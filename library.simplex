@@ -59,13 +59,39 @@ reset
     as exported, i.e. callable from the outside world.
     The FFI in its current form only describes the interfacing
     with programs written in the C programming language.
+    In comparison to the JNI it is strictly less powerful, as it
+    does not allow for an arbitrary function to be called from
+    the outside world but only for a function that is explicitly
+    marked as such.
+
+    It can be assumed that the primary motivation of the
+    creators of the FFI was to allow for Haskell applications to interface
+    with native libraries in order to enrich the Haskell
+    programming experience. On the other hand there really
+    are immense technical hurdles to overcome would one really
+    want to employ a mechanism that allows for calling
+    arbitrary functions.
+
+    The situation is not that worse though,
+    the FFI is absolutely capable of turning arbitrary functions
+    into \#FunPtr# values, as well as it can reference any value
+    by a \#StablePtr#. This can however only work
+    from within Haskell, i.e. it is not possible to query a module
+    from the outside for its functions and invoke one of them.
     
 
 === The Java Native Interface
     
     The JNI comprises an API for accessing the JVM and for
     accessing native methods from within the JVM.
-    
+    We will need to use the JNI in order to invoke functions
+    within the virtual machine form the outside world
+    as well as to call native methods from within the virtual
+    machine (the JNI allows for both). The JNI offers
+    a very rich interface and, most importantly, offers
+    access to literally everything inside the virtual machine.
+    Paired with the JVMs powerful reflection methods it
+    is possible to examine every bit of the JVM.
 
 
 ==  Design of the Library

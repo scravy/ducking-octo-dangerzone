@@ -131,9 +131,9 @@ colbreak
 
 figure H
 .haskell
-    data Tree a = Node a (Tree a) (Tree a)
-                | Empty
-caption A polymorphic Tree
+    data List a = Cons a (List a)
+                | Nil
+caption A polymorphic List
 label fig:polymorphicTreeHaskell
 endfigure
 
@@ -506,6 +506,13 @@ right
     foreign-language calls in Haskell^
     \break \space
 reset
+
+    Besides *pure computations* there will always be
+    situations that can not be handled beautifully, so we need to find
+    a way to do it at least gracefully. The Awkward Squad is a term
+    for the inherent relationship of any meaningful program with
+    the real world, which deals with *exceptions*, *concurrency*, *I/O*,
+    and interacting with other kids in the schoolyard.
 
 
 === Exceptions

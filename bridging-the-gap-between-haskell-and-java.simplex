@@ -6,8 +6,17 @@
 
 @abstract
     This thesis investigates the possibility of translating interfaces
-    between Haskell and Java libraries, and presents a tool for
-    using Haskell libraries from within the Java Virtual Machine.
+    between Haskell and Java libraries. Furthermore a library and a tool
+    are developed for invoking the virtual machine from within Haskell
+    processes and for the automatic translation of Java APIs into Haskell.
+    \break
+    \break
+    In dieser Arbeit wird die Möglichkeit einer Übersetzung von Schnittstellen
+    zwischen Haskell und Java Bibliotheken untersucht. Außerdem werden eine
+    Bibliothek und ein Werkzeug entwickelt um um die virtuelle Maschine aus
+    Haskell Prozessen heraus zu nutzen und um automatische Übersetzungen
+    von Java APIs nach Haskell durchzuführen.
+    vorgesetellt
 
 @newpagesections
 
@@ -29,11 +38,6 @@ image-width 5cm
 image siegel.jpg
 reset
 
-newpage
-
-tableofcontents
-
-newpage
 .latex
     \vspace{6em}
     \section*{Selbstständigkeitserklärung}
@@ -56,6 +60,12 @@ small
     \vspace{4cm}
 reset
 
+
+newpage
+
+tableofcontents
+
+newpage
 
 #include introduction.simplex
 #include basic.simplex
