@@ -5,3 +5,9 @@ _darcs
 *.toc
 *.log
 *.class
+*.aux
+*.lof
+*.aux
+*.dot
+bridging-the-gap-between-haskell-and-java.out
+bridging-the-gap-between-haskell-and-java.tex
